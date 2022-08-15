@@ -6,7 +6,7 @@ import threading
 import tkinter 
 import time
 
-print('.') # o terceiro ponto avisa a definição das classes 
+print(end='.') # o terceiro ponto avisa a definição das classes 
 
 class main:
 
@@ -37,6 +37,10 @@ class main:
 
 		self.main.address.start = tkinter.Button(self.main.address.container, text='Start', command=lambda: threading.Thread(target=self.server).start())
 		self.main.address.start.pack(side=tkinter.LEFT)
+
+		
+
+		self.main.bind('<Return>', lambda e: self.main.address.start.invoke())
 		self.main.mainloop()
 
 	def server (self):
@@ -67,7 +71,11 @@ class main:
 					server.listen()
 					connection, address = server.accept()
 					if not address in self.chats:
+
+						
+
 						self.chats[address] = chat(self.main, connection, address, 'from')						
+
 						threading.Thread(target=self.chats[address].start).start()
 
 				print('Servidor inativo')
@@ -83,8 +91,11 @@ class main:
 			address = self.main.address.ip.get().strip(), int(self.main.address.port.get())					
 
 			if not address in self.chats:
+
 					client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
 					client.connect(address)
+
 					self.chats[address] = chat(self.main, client, address, 'to')						
 
 					threading.Thread(target=self.chats[address].start).start()
@@ -92,6 +103,7 @@ class main:
 		except ValueError:
 			print('Corrija a porta para um inteiro válido')	
 
+		
 
 	def mainloop (self):	
 		self.start()
@@ -114,11 +126,18 @@ class chat:
 		self.main.msg.text.pack(side=tkinter.RIGHT, fill=tkinter.BOTH)
 
 		
+
+		
+		
 		self.connection = c
 		self.address = a
 		self.active = True
+		self.last = {2:None}
 
+		self.main.bind('<Return>', lambda e: self.main.msg.send.invoke())
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
+
+		
 
 	def start (self):	
 		self.mainloop()
@@ -126,21 +145,50 @@ class chat:
 	def send (self):	
 		msg = self.main.msg.text.get().strip()
 		if len(msg):
-			self.connection.sendall(msg.encode())
+			self.connection.sendall((msg + '\n').encode())
 			self.main.msg.text.delete(0,tkinter.END)
 			paragraph = tkinter.Frame(self.main.chat)
+			t = time.localtime()[:5]
+			if t != self.last:
+				if t[2] != self.last[2]:
+					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()
+				self.last = t
+				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()								
 			tkinter.Label(paragraph, text=msg).pack(side=tkinter.RIGHT)	
 			paragraph.pack(fill=tkinter.X)
+
+			
+
+
+			
 
 	def mainloop (self):	
 		with self.connection:
 			while self.active:
+				msg = self.connection.recv(1024).decode().strip()
 				paragraph = tkinter.Frame(self.main.chat)
-				tkinter.Label(paragraph, text=self.connection.recv(1024).decode()).pack(side=tkinter.LEFT)	
 				paragraph.pack(fill=tkinter.X)
+				tkinter.Label(paragraph, text=msg).pack(side=tkinter.LEFT)	
+				t = time.localtime()[:5]
+				if t != self.last:					
+					if self.last[2] != t[2]:
+						tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()					
+					tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()
+					self.last = t
+				
 			
 	def destroy (self):
 		self.active = False
 		self.main.destroy()
+
+
+
+
+
+print('.')
+
 if __name__ == '__main__':		
 	main().start()	
+
+
+
