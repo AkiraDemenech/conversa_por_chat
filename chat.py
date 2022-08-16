@@ -1,3 +1,4 @@
+
 print(end='\n.') # o primeiro ponto avisa que o programa abriu e está carregando
 import socket # Internet Socket API 
 
@@ -7,6 +8,9 @@ import tkinter
 import time
 
 print(end='.') # o terceiro ponto avisa a definição das classes 
+LOG = 'ip_port.log'
+SEP = '\t'
+
 
 class main:
 
@@ -25,7 +29,7 @@ class main:
 		self.main.address.container = tkinter.Frame(self.main.address)
 		self.main.address.container.pack()
 
-		tkinter.Label(self.main.address.container, text='IP:').pack(side=tkinter.LEFT)
+		tkinter.Label(self.main.address.container, text='IP').pack(side=tkinter.LEFT)
 
 		self.main.address.ip = tkinter.Entry(self.main.address.container)
 		self.main.address.ip.pack(side=tkinter.LEFT)
@@ -39,6 +43,19 @@ class main:
 		self.main.address.start.pack(side=tkinter.LEFT)
 
 		
+		try:
+			with open(LOG,'r') as log:
+				address = log.read().split(SEP)
+				print(address)
+
+				if len(address) >= 2:
+					self.main.address.port.insert(0,address[1].strip())
+
+				if len(address) >= 1:
+					self.main.address.ip.insert(0,address[0].strip())	
+
+		except FileNotFoundError:	
+			pass
 
 		self.main.bind('<Return>', lambda e: self.main.address.start.invoke())
 		self.main.mainloop()
@@ -59,17 +76,21 @@ class main:
 			
 			self.main.address.start.config(command=self.client,text='Connect')
 			tkinter.Label(self.main.address, text='Listening:\n' + str(self.address)).pack()	
+			print('Server address:\t',self.address)
 
 
 			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
 
 				server.bind(self.address)	
 				
+				with open(LOG,'w') as log:
+					print(*self.address,sep=SEP,file=log)
 				
 				while self.active:
 
 					server.listen()
 					connection, address = server.accept()
+					print('Accepted',address)
 					if not address in self.chats:
 
 						
@@ -91,6 +112,8 @@ class main:
 			address = self.main.address.ip.get().strip(), int(self.main.address.port.get())					
 
 			if not address in self.chats:
+
+					print('Connecting to',address)
 
 					client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -140,6 +163,7 @@ class chat:
 		
 
 	def start (self):	
+		print('Chatting with',self.address)
 		self.mainloop()
 
 	def send (self):	
