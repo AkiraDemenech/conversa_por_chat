@@ -142,20 +142,22 @@ class chat:
 
 		self.main.msg.send = tkinter.Button(self.main.msg, text='Send', command=self.send)
 		self.main.msg.send.pack(side=tkinter.RIGHT)
+		self.main.msg.send.function = lambda e: self.main.msg.send.invoke()
 
 		self.main.msg.text = tkinter.Entry(self.main.msg)
 		self.main.msg.text.pack(side=tkinter.RIGHT, fill=tkinter.BOTH)
 
 		
 
-		
+		self.files = {}
+		self.sending = []
 		
 		self.connection = c
 		self.address = a
 		self.active = True
 		self.last = {2:None}
 
-		self.main.bind('<Return>', lambda e: self.main.msg.send.invoke())
+		self.main.bind('<Return>', self.main.msg.send.function)
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
 		
@@ -165,9 +167,24 @@ class chat:
 		self.mainloop()
 
 	def send (self):	
-		msg = self.main.msg.text.get().strip()
-		if len(msg):
-			self.connection.sendall((msg + '\n').encode())
+	#	self.main.msg.send.config(state=tkinter.DISABLED)
+		self.main.bind('<Return>', print)
+		filename = self.main.msg.text.get().strip()
+		if len(filename):
+			name = filename.split('/')[-1].split('\\')[-1]
+			
+			with open(filename, 'rb') as file:				
+				c = 0
+				while True:
+					c += 1
+					body = file.read(500)
+					if len(body):
+						self.sending.append((c,name,(f'{c}/{name}\\').encode() + body))																	 
+					else: 	
+						self.sending.append((c,name,(f'{c}/|{name}\\').encode()))
+						break
+			self.connection.sendall((f'0/{name}\\').encode())
+			
 			self.main.msg.text.delete(0,tkinter.END)
 			paragraph = tkinter.Frame(self.main.chat)
 			t = time.localtime()[:5]
@@ -176,10 +193,11 @@ class chat:
 					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()
 				self.last = t
 				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()								
-			tkinter.Label(paragraph, text=msg).pack(side=tkinter.RIGHT)	
-			paragraph.pack(fill=tkinter.X)
+			tkinter.Label(paragraph, text=filename).pack(side=tkinter.RIGHT)	
+			paragraph.pack(fill=tkinter.X) 
 
-			
+	#	self.main.msg.send.config(state=tkinter.ACTIVE)	
+		self.main.bind('<Return>', self.main.msg.send.function)
 
 
 			
@@ -187,16 +205,73 @@ class chat:
 	def mainloop (self):	
 		with self.connection:
 			while self.active:
-				msg = self.connection.recv(1024).decode().strip()
-				paragraph = tkinter.Frame(self.main.chat)
-				paragraph.pack(fill=tkinter.X)
-				tkinter.Label(paragraph, text=msg).pack(side=tkinter.LEFT)	
-				t = time.localtime()[:5]
-				if t != self.last:					
-					if self.last[2] != t[2]:
-						tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()					
-					tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()
-					self.last = t
+				msg = self.connection.recv(1024)#.decode().strip()
+				
+
+				f = ''
+				i = b = False
+				
+				while True:
+					c = msg[i]
+					i += 1	
+					if c == 124:	#|
+						print('EOF')
+						b = True
+					elif c == 47:	#/	
+						print('Not done yet')	
+						n = int(f)
+						f = ''
+					elif c == 92:	#\
+						break
+					else:
+						f += chr(c)
+
+				if len(f) or len(self.sending):
+					if len(self.sending):
+						c,name,msg = self.sending.pop(0)
+						print('Sending:\t',name,c)
+						self.connection.sendall(msg)	
+					else:
+						self.connection.sendall(b'\\')	
+				if not len(f):	
+					continue
+				
+
+				print(f,n,i)		
+				if not f in self.files:
+					print('Starting',f)
+					self.files[f] = {'size':None}
+				self.files[f][n] = msg[i:]	
+
+				
+				if b:
+					self.files[f]['size'] = n + 2
+					print('Size:',self.files[f]['size'],len(self.files[f]))
+				if len(self.files[f]) == self.files[f]['size']:
+					print('Saving',f)
+					with open(f, 'wb') as file:
+						for c in range(len(self.files[f])):
+							if c in self.files[f]:
+								file.write(self.files[f][c])
+								print(c, len(self.files[f][c]))
+							else:
+								print(c, len(self.files[f]))	
+
+					paragraph = tkinter.Frame(self.main.chat)
+					paragraph.pack(fill=tkinter.X)
+					tkinter.Label(paragraph, text=f).pack(side=tkinter.LEFT)	
+					t = time.localtime()[:5]
+					if t != self.last:					
+						if self.last[2] != t[2]:
+							tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()					
+						tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()
+						self.last = t		
+							
+					
+
+						
+
+				
 				
 			
 	def destroy (self):
