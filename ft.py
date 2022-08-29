@@ -10,6 +10,8 @@ import time
 print(end='.') # o terceiro ponto avisa a definição das classes 
 LOG = 'ip_port.log'
 SEP = '\t'
+META = 5
+SIZE = 500
 
 
 class main:
@@ -20,7 +22,7 @@ class main:
 
 		self.chats = {} # conversas iniciadas		
 
-		self.main.title('TCP chat') # mudando o título da janela principal 
+		self.main.title('TCP chat (File transfer)') # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
@@ -173,16 +175,21 @@ class chat:
 		if len(filename):
 			name = filename.split('/')[-1].split('\\')[-1]
 			
+			queue = []
 			with open(filename, 'rb') as file:				
 				c = 0
 				while True:
 					c += 1
-					body = file.read(500)
+					body = file.read(SIZE)
 					if len(body):
-						self.sending.append((c,name,(f'{c}/{name}\\').encode() + body))																	 
+						queue.append((c,name,(f'{c}/{name}\\').encode() + body))																	 
 					else: 	
-						self.sending.append((c,name,(f'{c}/|{name}\\').encode()))
+						queue.append((c,name,(f'{c}/|{name}\\').encode()))
 						break
+			while len(self.sending) > 0:		
+				print('Waiting',len(self.sending))
+				time.sleep(len(self.sending)/(1 + len(self.sending)))
+			self.sending.extend(queue)	
 			self.connection.sendall((f'0/{name}\\').encode())
 			
 			self.main.msg.text.delete(0,tkinter.END)
@@ -205,7 +212,7 @@ class chat:
 	def mainloop (self):	
 		with self.connection:
 			while self.active:
-				msg = self.connection.recv(1024)#.decode().strip()
+				msg = self.connection.recv(2048)#.decode().strip()
 				
 
 				f = ''
@@ -235,27 +242,32 @@ class chat:
 						self.connection.sendall(b'\\')	
 				if not len(f):	
 					continue
+				ti = time.time()
 				
 
 				print(f,n,i)		
 				if not f in self.files:
-					print('Starting',f)
-					self.files[f] = {'size':None}
+					print('Starting',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6])
+					self.files[f] = {'size':None,
+									'last':False,
+									'start':ti,'end':ti}
 				self.files[f][n] = msg[i:]	
+				self.files[f]['last'] = n
 
 				
 				if b:
-					self.files[f]['size'] = n + 2
+					self.files[f]['size'] = n + META
 					print('Size:',self.files[f]['size'],len(self.files[f]))
 				if len(self.files[f]) == self.files[f]['size']:
-					print('Saving',f)
+					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], ti - self.files[f]['start'])
+					self.files[f]['end'] = ti
 					with open(f, 'wb') as file:
 						for c in range(len(self.files[f])):
 							if c in self.files[f]:
 								file.write(self.files[f][c])
-								print(c, len(self.files[f][c]))
-							else:
-								print(c, len(self.files[f]))	
+						#		print(c, len(self.files[f][c]), 'bytes')
+						#	else:
+						#		print(c, len(self.files[f]) - META, 'pacotes')	
 
 					paragraph = tkinter.Frame(self.main.chat)
 					paragraph.pack(fill=tkinter.X)
