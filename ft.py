@@ -11,7 +11,7 @@ print(end='.') # o terceiro ponto avisa a definição das classes
 LOG = 'ip_port.log'
 SEP = '\t'
 META = 5
-SIZE = 500
+SIZE = 1500
 
 
 class main:
@@ -168,29 +168,38 @@ class chat:
 		print('Chatting with',self.address)
 		self.mainloop()
 
-	def send (self):	
+	def send (self, size = SIZE):	
 	#	self.main.msg.send.config(state=tkinter.DISABLED)
 		self.main.bind('<Return>', print)
 		filename = self.main.msg.text.get().strip()
 		if len(filename):
 			name = filename.split('/')[-1].split('\\')[-1]
-			
 			queue = []
 			with open(filename, 'rb') as file:				
 				c = 0
 				while True:
 					c += 1
-					body = file.read(SIZE)
-					if len(body):
-						queue.append((c,name,(f'{c}/{name}\\').encode() + body))																	 
-					else: 	
-						queue.append((c,name,(f'{c}/|{name}\\').encode()))
+					head = (f'{c}/{name}\\').encode()
+
+					if len(head) < size:
+						body = file.read(size - len(head))
+					else:	
+						body = file.read(size)
+						print('File too large:\t',c,name)															
+					
+					if len(body) + len(head) < size:
+						queue.append((c,name,'|'.encode() + head + body))
 						break
+					queue.append((c, name, head + body))																	 
+					 	
+						
+
 			while len(self.sending) > 0:		
 				print('Waiting',len(self.sending))
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
 			self.sending.extend(queue)	
-			self.connection.sendall((f'0/{name}\\').encode())
+			self.connection.sendall((f'{len(queue)}|/0/{name}\\').encode())
+			print(name,len(queue),size)
 			
 			self.main.msg.text.delete(0,tkinter.END)
 			paragraph = tkinter.Frame(self.main.chat)
@@ -216,58 +225,69 @@ class chat:
 				
 
 				f = ''
-				i = b = False
+				n = m = i = b = False
 				
-				while True:
+				while len(msg) > i:
 					c = msg[i]
 					i += 1	
 					if c == 124:	#|
-						print('EOF')
+						print('EOF (size)')
 						b = True
 					elif c == 47:	#/	
-						print('Not done yet')	
+					#	print('Not done yet')	
+						m = n
 						n = int(f)
 						f = ''
 					elif c == 92:	#\
 						break
 					else:
 						f += chr(c)
+				else:		
+					print('ERROR\t',f,n,m,b,i)
 
-				if len(f) or len(self.sending):
-					if len(self.sending):
-						c,name,msg = self.sending.pop(0)
-						print('Sending:\t',name,c)
-						self.connection.sendall(msg)	
-					else:
-						self.connection.sendall(b'\\')	
+				if len(self.sending):
+					c,name,msg = self.sending.pop(0)
+					print('Sending:\t',name,c)
+					self.connection.sendall(msg)	
+					
+				elif len(f):
+					self.connection.sendall(b'\\')	
 				if not len(f):	
-					continue
+						continue
+
+				
 				ti = time.time()
 				
 
-				print(f,n,i)		
+				print(f,n,m,b,i)		
 				if not f in self.files:
+					
 					print('Starting',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6])
 					self.files[f] = {'size':None,
 									'last':False,
-									'start':ti,'end':ti}
-				self.files[f][n] = msg[i:]	
+									'start':ti,'end':ti,
+									'data':{}}
+				self.files[f]['data'][n] = msg[i:]	
 				self.files[f]['last'] = n
+				
 
 				
-				if b:
-					self.files[f]['size'] = n + META
-					print('Size:',self.files[f]['size'],len(self.files[f]))
-				if len(self.files[f]) == self.files[f]['size']:
+				if b or not n:
+					self.files[f]['size'] = n + m + 1
+					print('Size:',self.files[f]['size'],len(self.files[f]['data']))
+				if len(self.files[f]['data']) == self.files[f]['size']:
 					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], ti - self.files[f]['start'])
 					self.files[f]['end'] = ti
 					with open(f, 'wb') as file:
-						for c in range(len(self.files[f])):
-							if c in self.files[f]:
-								file.write(self.files[f][c])
+						k = list(self.files[f]['data'])
+						k.sort()
+						for c in k:
+							file.write(self.files[f]['data'][c])
 						#		print(c, len(self.files[f][c]), 'bytes')
 						#	else:
 						#		print(c, len(self.files[f]) - META, 'pacotes')	
+					print(f,'saved.')	
+					self.files.pop(f)	
 
 					paragraph = tkinter.Frame(self.main.chat)
 					paragraph.pack(fill=tkinter.X)
