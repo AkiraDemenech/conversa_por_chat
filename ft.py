@@ -162,13 +162,15 @@ class chat:
 		self.main.bind('<Return>', self.main.msg.send.function)
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
+		self.size = SIZE
+
 		
 
 	def start (self):	
-		print('Chatting with',self.address)
+		print('Chatting with',self.address,'(File transfer)')
 		self.mainloop()
 
-	def send (self, size = SIZE):	
+	def send (self):	
 	#	self.main.msg.send.config(state=tkinter.DISABLED)
 		self.main.bind('<Return>', print)
 		filename = self.main.msg.text.get().strip()
@@ -179,16 +181,17 @@ class chat:
 				c = 0
 				while True:
 					c += 1
-					head = (f'{c}/{name}\\').encode()
+					head = (f'{hex(c)[2:]}/{name}\\').encode()
 
-					if len(head) < size:
-						body = file.read(size - len(head))
+					if len(head) < self.size:
+						body = file.read(self.size - len(head))
 					else:	
-						body = file.read(size)
+						body = file.read(self.size)
 						print('File too large:\t',c,name)															
+						return
 					
-					if len(body) + len(head) < size:
-						queue.append((c,name,'|'.encode() + head + body))
+					if len(body) + len(head) < self.size:
+						queue.append((c,name,('|'*(self.size-len(body)-len(head))).encode() + head + body))
 						break
 					queue.append((c, name, head + body))																	 
 					 	
@@ -198,8 +201,8 @@ class chat:
 				print('Waiting',len(self.sending))
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
 			self.sending.extend(queue)	
-			self.connection.sendall((f'{len(queue)}|/0/{name}\\').encode())
-			print(name,len(queue),size)
+			self.connection.sendall((f'{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/0/{name}\\').encode())
+			print(name,len(queue),self.size)
 			
 			self.main.msg.text.delete(0,tkinter.END)
 			paragraph = tkinter.Frame(self.main.chat)
@@ -221,11 +224,11 @@ class chat:
 	def mainloop (self):	
 		with self.connection:
 			while self.active:
-				msg = self.connection.recv(2048)#.decode().strip()
+				msg = self.connection.recv(self.size)#.decode().strip()
 				
 
 				f = ''
-				n = m = i = b = False
+				k = n = m = i = b = False
 				
 				while len(msg) > i:
 					c = msg[i]
@@ -235,8 +238,9 @@ class chat:
 						b = True
 					elif c == 47:	#/	
 					#	print('Not done yet')	
+						k = m
 						m = n
-						n = int(f)
+						n = int(f, 16)
 						f = ''
 					elif c == 92:	#\
 						break
@@ -245,13 +249,14 @@ class chat:
 				else:		
 					print('ERROR\t',f,n,m,b,i)
 
-				if len(self.sending):
+				while len(self.sending):
 					c,name,msg = self.sending.pop(0)
 					print('Sending:\t',name,c)
 					self.connection.sendall(msg)	
 					
-				elif len(f):
-					self.connection.sendall(b'\\')	
+				else:
+					if len(f):
+						self.connection.sendall('\\'.zfill(self.size).encode())	
 				if not len(f):	
 						continue
 
@@ -275,6 +280,9 @@ class chat:
 				if b or not n:
 					self.files[f]['size'] = n + m + 1
 					print('Size:',self.files[f]['size'],len(self.files[f]['data']))
+					if k:
+						self.size = k
+						print('Package size:',k,self.size)
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], ti - self.files[f]['start'])
 					self.files[f]['end'] = ti
