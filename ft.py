@@ -254,9 +254,6 @@ class chat:
 					print('Sending:\t',name,c)
 					self.connection.sendall(msg)	
 					
-				else:
-					if len(f):
-						self.connection.sendall('\\'.zfill(self.size).encode())	
 				if not len(f):	
 						continue
 
@@ -283,6 +280,7 @@ class chat:
 					if k:
 						self.size = k
 						print('Package size:',k,self.size)
+						self.connection.sendall(b'\\')
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], ti - self.files[f]['start'])
 					self.files[f]['end'] = ti
