@@ -282,7 +282,9 @@ class chat:
 						print('Package size:',k,self.size)
 						self.connection.sendall(b'\\')
 				if len(self.files[f]['data']) == self.files[f]['size']:
-					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], ti - self.files[f]['start'])
+					dt = ti - self.files[f]['start']
+					sz = self.files[f]['size'] * self.size
+					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], dt,'\n', (f'{sz:,} bytes\t').replace(',','.'),f'{sz/(1024 * 1024 * dt)} Mbits/s'.replace('.',','))
 					self.files[f]['end'] = ti
 					with open(f, 'wb') as file:
 						k = list(self.files[f]['data'])
