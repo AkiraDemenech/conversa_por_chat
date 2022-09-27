@@ -13,6 +13,10 @@ SEP = '\t'
 META = 5
 SIZE = 1500
 
+tcp = lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+udp = lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+protocol = tcp
 
 class main:
 
@@ -20,7 +24,7 @@ class main:
 		self.main = tkinter.Tk()
 		self.active = True
 
-		self.chats = {} # conversas iniciadas		
+				
 
 		self.main.title('TCP chat (File transfer)') # mudando o título da janela principal 
 
@@ -80,7 +84,7 @@ class main:
 			print('Server address:\t',self.address)
 
 
-			with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+			with protocol() as server:
 
 				server.bind(self.address)	
 				with open(LOG,'w') as log:
@@ -91,13 +95,13 @@ class main:
 					server.listen()
 					connection, address = server.accept()
 					print('Accepted',address)
-					if not address in self.chats:
+					
 
 						
 
-						self.chats[address] = chat(self.main, connection, address, 'from')						
+						 						
 
-						threading.Thread(target=self.chats[address].start).start()
+					threading.Thread(target=chat(self.main, connection, address, 'from').start).start()
 
 				print('Servidor inativo')
 
@@ -111,17 +115,17 @@ class main:
 		try:
 			address = self.main.address.ip.get().strip(), int(self.main.address.port.get())					
 
-			if not address in self.chats:
+			
 
-					print('Connecting to',address)
+			print('Connecting to',address)
 
-					client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			client = protocol()
 
-					client.connect(address)
+			client.connect(address)
 
-					self.chats[address] = chat(self.main, client, address, 'to')						
+					 						
 
-					threading.Thread(target=self.chats[address].start).start()
+			threading.Thread(target=chat(self.main, client, address, 'to').start).start()
 
 		except ValueError:
 			print('Corrija a porta para um inteiro válido')	
@@ -201,7 +205,11 @@ class chat:
 				print('Waiting',len(self.sending))
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
 			self.sending.extend(queue)	
-			self.connection.sendall((f'{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/0/{name}\\').encode())
+			pre = f'{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
+			pos = '/' + name + '\\'
+
+
+			self.connection.sendall((pre + ('0' * (self.size - len(pre) - len(pos))) + pos).encode())
 			print(name,len(queue),self.size)
 			
 			self.main.msg.text.delete(0,tkinter.END)
@@ -247,7 +255,7 @@ class chat:
 					else:
 						f += chr(c)
 				else:		
-					print('ERROR\t',f,n,m,b,i)
+					print('ERROR\t',repr(f),n,m,b,i) # bytes lidos até agora, último e penúltimo número, se é pacote de tamanho, quantidade de bytes de cabeçalho lidos até agora
 
 				while len(self.sending):
 					c,name,msg = self.sending.pop(0)
@@ -255,7 +263,7 @@ class chat:
 					self.connection.sendall(msg)	
 					
 				if not len(f):	
-						continue
+					continue
 
 				
 				ti = time.time()
@@ -284,8 +292,9 @@ class chat:
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					dt = ti - self.files[f]['start']
 					sz = self.files[f]['size'] * self.size
-					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6], dt,'\n', (f'{sz:,} bytes\t').replace(',','.'),f'{sz/(1024 * 1024 * dt)} Mbits/s'.replace('.',','))
+					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],f'\t{dt} s\n'.replace('.',','), (f'{sz:,} bytes ({sz/(1024**2):,} MB = {sz/(1024*128):,} Mb)\t').replace(',',';').replace('.', ',').replace(';', '.'),f'{sz/(1024 * 128 * dt):,} Mb/s'.replace('.',';').replace(',','.').replace(';',',') if dt else '')
 					self.files[f]['end'] = ti
+					
 					with open(f, 'wb') as file:
 						k = list(self.files[f]['data'])
 						k.sort()
