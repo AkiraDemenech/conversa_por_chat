@@ -156,6 +156,7 @@ class chat:
 		
 
 		self.files = {}
+		self.sending_files = {}
 		self.sending = []
 		
 		self.connection = c
@@ -204,6 +205,7 @@ class chat:
 			while len(self.sending) > 0:		
 				print('Waiting',len(self.sending))
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
+				
 			self.sending.extend(queue)	
 			pre = f'{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
 			pos = '/' + name + '\\'
@@ -259,8 +261,10 @@ class chat:
 
 				while len(self.sending):
 					c,name,msg = self.sending.pop(0)
+					self.sending_files[(name,c)] = msg
 					print('Sending:\t',name,c)
 					self.connection.sendall(msg)	
+					time.sleep(1/100)
 					
 				if not len(f):	
 					continue
