@@ -174,7 +174,7 @@ class chat:
 
 		self.size = SIZE
 		self.burst = BURST
-		self.burst_ack = False
+		self.burst_ack = {}
 
 		
 
@@ -244,13 +244,14 @@ class chat:
 	def send_file (self):
 
 		burst = []
+		self.burst_ack.clear()
 
 		while len(self.sending):
 			c, name, msg = self.sending.pop(0)			
 			  
-			if not (c % self.burst):
-				print('Burst')
-				self.burst_ack = False
+			
+				
+				
 
 			
 			print('Sending:\t',name,c)
@@ -259,12 +260,22 @@ class chat:
 			burst.insert(0, (name, c))
 			self.sending_files[(name, c)] = msg
 
-			time.sleep(((c % 2) + (10 * (not self.burst_ack))) / 100) # espera entre envio pacotes para garantir integridade na leitura do header
+			time.sleep((c % 2) / 100) # espera entre envio pacotes para garantir integridade na leitura do header
 
-			if not self.burst_ack:
+			if c % self.burst:
+				continue
+
+			print('Burst')
+
+			for t in range(100):
+				if c in self.burst_ack:
+					print('Burst ACK:\tpackage',self.burst_ack[c],'\t',t,'ms')
+					break 
+				time.sleep(1 / 1000)
+			else:
 				print('Burst ACK timeout')
 				for name, c in burst:
-					self.sending.insert(0,(name,c,self.sending_files[(name,c)]))
+					self.sending.insert(0,(c,name,self.sending_files[(name,c)]))
 				burst.clear()	
 					
 
@@ -308,6 +319,9 @@ class chat:
 				# file name, package number, last package number if it has this information, header size (bytes), burst size (packages), package size (bytes) 	
 				print(f, n, m, b, i, j, k) 
 				if not len(f):	
+					if k == -10: 
+						self.burst_ack[m] = n
+						print('Burst ACK received\t-a', m, n)
 					continue
 
 				
@@ -321,14 +335,25 @@ class chat:
 					self.files[f] = {'size':None,
 									'last':False,
 									'start':ti,'end':ti,
+									'repeated': [],
 									'data':{}}
-				self.files[f]['data'][n] = msg[i:]	
-				self.files[f]['last'] = n
 				
 
-				if len(self.files[f]['data']) % self.burst == 1:					
+				if n in self.files[f]['data']: 
+					self.files[f]['repeated'].append((n, self.files[f]['last']))
+				else:	
 					
-					print('Sending burst ACK')
+					if not (len(self.files[f]['data']) % self.burst):					
+					#	Se soma mais um pacote e isso completa o tamanho de uma rajada (janela) 
+						self.connection.sendall(('/-a/' + hex(len(self.files[f]['data']))[2:] + '/' + hex(n)[2:] + '/\\').zfill(self.size).encode())
+						print('Sending burst ACK')
+
+					self.files[f]['data'][n] = msg[i:]	
+					self.files[f]['last'] = n	
+
+				
+				
+				
 				
 				
 				if b or not n:
