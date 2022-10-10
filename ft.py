@@ -174,6 +174,7 @@ class chat:
 
 		self.size = SIZE
 		self.burst = BURST
+		self.burst_ack_timeout = 100 #ms
 		self.burst_ack = {}
 
 		
@@ -243,8 +244,11 @@ class chat:
 
 	def send_file (self):
 
+		
+		lost = []
 		burst = []
 		self.burst_ack.clear()
+		ti = time.time()
 
 		while len(self.sending):
 			c, name, msg = self.sending.pop(0)			
@@ -260,24 +264,38 @@ class chat:
 			burst.insert(0, (name, c))
 			self.sending_files[(name, c)] = msg
 
-			time.sleep((c % 2) / 100) # espera entre envio pacotes para garantir integridade na leitura do header
+			
 
-			if c % self.burst:
+			if (c % self.burst) and len(self.sending):
+				# espera entre envio pacotes para garantir integridade na leitura do header
+				time.sleep(1 / 100) 
 				continue
 
 			print('Burst')
 
-			for t in range(100):
+			for t in range(self.burst_ack_timeout):
 				if c in self.burst_ack:
-					print('Burst ACK:\tpackage',self.burst_ack[c],'\t',t,'ms')
+					print('Burst ACK (',len(self.burst_ack),'):\tpackage',self.burst_ack[c],'\t',t,'ms')
 					break 
 				time.sleep(1 / 1000)
 			else:
 				print('Burst ACK timeout')
 				for name, c in burst:
 					self.sending.insert(0,(c,name,self.sending_files[(name,c)]))
+				lost.extend(burst)
 				burst.clear()	
 					
+				
+				self.burst_ack_timeout <<= 1 # dobramos o timeout, caso seja lentidão na rede	
+
+		tf = time.time()		
+
+		print(locale.format_string('%.6f', tf - ti, grouping=True),'s\t', (locale.format_string('%.6f', (len(lost) + c + 1) * self.size / ((tf - ti) * (2**17)), grouping=True) + ' total Mb/s'))	
+		print(locale.format_string('%d', len(lost) + c + 1, grouping=True), 'sent (' + locale.format_string('%d', c + 1, grouping=True), 'unique packages),')
+		print(locale.format_string('%d', len(lost), grouping=True), 'lost (' + locale.format_string('%d', len(set(lost)), grouping=True), 'unique packages):')
+		
+		for f, l in lost:
+			print(f, '\t', l)
 
 			
 
@@ -343,7 +361,7 @@ class chat:
 					self.files[f]['repeated'].append((n, self.files[f]['last']))
 				else:	
 					
-					if not (len(self.files[f]['data']) % self.burst):					
+					if len(self.files[f]['data']) == self.files[f]['size'] or not (len(self.files[f]['data']) % self.burst):					
 					#	Se soma mais um pacote e isso completa o tamanho de uma rajada (janela) 
 						self.connection.sendall(('/-a/' + hex(len(self.files[f]['data']))[2:] + '/' + hex(n)[2:] + '/\\').zfill(self.size).encode())
 						print('Sending burst ACK')
@@ -364,12 +382,12 @@ class chat:
 						if j:
 							self.burst = j
 							print('Burst size:',j)
-						print('Package size:',k)
+						print('Package size:',self.size)
 						
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					dt = ti - self.files[f]['start']
 					sz = self.files[f]['size'] * self.size
-					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' Mb/s') if dt else '')
+					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' successful Mb/s') if dt else '')
 					repeated = len(self.files[f]['repeated'])
 					print(locale.format_string('%d', repeated + self.files[f]['size'], grouping=True), 'packages received:')
 					
