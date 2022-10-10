@@ -8,7 +8,7 @@ import tkinter
 import time
 
 import locale
-locale.setLocale(locale.LC_ALL, 'pt_BR.UTF-8')
+locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 
 print(end='.') # o terceiro ponto avisa a definição das classes 
 LOG = 'ip_port.log'
@@ -209,13 +209,17 @@ class chat:
 				print('Waiting',len(self.sending))
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
 				
-			self.sending.extend(queue)	
+			
 			pre = f'{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
 			pos = '/' + name + '\\'
+			queue.insert(0, (c, name, (pre + ('0' * (self.size - len(pre) - len(pos))) + pos).encode()))
 
 
-			self.connection.sendall((pre + ('0' * (self.size - len(pre) - len(pos))) + pos).encode())
 			print(name,len(queue),self.size)
+			self.sending.extend(queue)	
+
+			threading.Thread(target=self.send_file).start()
+			
 			
 			self.main.msg.text.delete(0,tkinter.END)
 			paragraph = tkinter.Frame(self.main.chat)
@@ -231,7 +235,14 @@ class chat:
 	#	self.main.msg.send.config(state=tkinter.ACTIVE)	
 		self.main.bind('<Return>', self.main.msg.send.function)
 
+	def send_file (self):
 
+		while len(self.sending):
+			c, name, msg = self.sending.pop(0)
+			self.sending_files[(name,c)] = msg
+			print('Sending:\t',name,c)
+			self.connection.sendall(msg)	
+			time.sleep((c % 2) / 100) # espera entre envio pacotes para garantir integridade na leitura do header
 			
 
 	def mainloop (self):	
@@ -247,8 +258,9 @@ class chat:
 					c = msg[i]
 					i += 1	
 					if c == 124:	#|
-						print('EOF (size)')
-						b = True
+						if not b:
+							print('EOF (size)')
+							b = True
 					elif c == 47:	#/	
 					#	print('Not done yet')	
 						k = m
@@ -262,13 +274,9 @@ class chat:
 				else:		
 					print('ERROR\t',repr(f),n,m,b,i) # bytes lidos até agora, último e penúltimo número, se é pacote de tamanho, quantidade de bytes de cabeçalho lidos até agora
 
-				while len(self.sending):
-					c,name,msg = self.sending.pop(0)
-					self.sending_files[(name,c)] = msg
-					print('Sending:\t',name,c)
-					self.connection.sendall(msg)	
-					time.sleep(1/100)
+				 
 					
+				print(f,n,m,b,i)
 				if not len(f):	
 					continue
 
@@ -276,7 +284,7 @@ class chat:
 				ti = time.time()
 				
 
-				print(f,n,m,b,i)		
+						
 				if not f in self.files:
 					
 					print('Starting',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6])
@@ -295,11 +303,11 @@ class chat:
 					if k:
 						self.size = k
 						print('Package size:',k,self.size)
-						self.connection.sendall(b'\\')
+						
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					dt = ti - self.files[f]['start']
 					sz = self.files[f]['size'] * self.size
-					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.3f', dt, grouping=True),'s\n', locale.format_string('%.3f', sz, grouping=True), 'bytes (',locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.3f', sz / (1024 * 128 * dt), grouping=True) + 'Mb/s') if dt else '')
+					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' Mb/s') if dt else '')
 					self.files[f]['end'] = ti
 					
 					with open(f, 'wb') as file:
@@ -338,7 +346,7 @@ class chat:
 
 
 
-print('.')
+print('.') 
 # ponto final avisa o fim das definições
 
 if __name__ == '__main__':		
