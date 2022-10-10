@@ -13,7 +13,8 @@ locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
 print(end='.') # o terceiro ponto avisa a definição das classes 
 LOG = 'ip_port.log'
 SEP = '\t'
-META = 5
+
+BURST = 4
 SIZE = 1500
 
 tcp = lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -162,6 +163,7 @@ class chat:
 		self.sending_files = {}
 		self.sending = []
 		
+		
 		self.connection = c
 		self.address = a
 		self.active = True
@@ -171,6 +173,8 @@ class chat:
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
 		self.size = SIZE
+		self.burst = BURST
+		self.burst_ack = False
 
 		
 
@@ -198,6 +202,7 @@ class chat:
 						print('File too large:\t',c,name)															
 						return
 					
+					# último pacote do arquivo
 					if len(body) + len(head) < self.size:
 						queue.append((c,name,('|'*(self.size-len(body)-len(head))).encode() + head + body))
 						break
@@ -210,10 +215,11 @@ class chat:
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
 				
 			
-			pre = f'{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
+			# primeiro pacote do arquivo
+			pre = f'{hex(self.burst)[2:]}/{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
 			pos = '/' + name + '\\'
-			queue.insert(0, (c, name, (pre + ('0' * (self.size - len(pre) - len(pos))) + pos).encode()))
 
+			queue.insert(0, (False, name, (pre + ('0' * (self.size - len(pre) - len(pos))) + pos).encode()))
 
 			print(name,len(queue),self.size)
 			self.sending.extend(queue)	
@@ -237,12 +243,34 @@ class chat:
 
 	def send_file (self):
 
+		burst = []
+
 		while len(self.sending):
-			c, name, msg = self.sending.pop(0)
-			self.sending_files[(name,c)] = msg
+			c, name, msg = self.sending.pop(0)			
+			  
+			if not (c % self.burst):
+				print('Burst')
+				self.burst_ack = False
+
+			
 			print('Sending:\t',name,c)
 			self.connection.sendall(msg)	
-			time.sleep((c % 2) / 100) # espera entre envio pacotes para garantir integridade na leitura do header
+			
+			burst.insert(0, (name, c))
+			self.sending_files[(name, c)] = msg
+
+			time.sleep(((c % 2) + (10 * (not self.burst_ack))) / 100) # espera entre envio pacotes para garantir integridade na leitura do header
+
+			if not self.burst_ack:
+				print('Burst ACK timeout')
+				for name, c in burst:
+					self.sending.insert(0,(name,c,self.sending_files[(name,c)]))
+				burst.clear()	
+					
+
+			
+
+
 			
 
 	def mainloop (self):	
@@ -252,7 +280,7 @@ class chat:
 				
 
 				f = ''
-				k = n = m = i = b = False
+				j = k = n = m = i = b = False
 				
 				while len(msg) > i:
 					c = msg[i]
@@ -262,7 +290,7 @@ class chat:
 							print('EOF (size)')
 							b = True
 					elif c == 47:	#/	
-					#	print('Not done yet')	
+						j = k	
 						k = m
 						m = n
 						n = int(f, 16)
@@ -272,11 +300,13 @@ class chat:
 					else:
 						f += chr(c)
 				else:		
-					print('ERROR\t',repr(f),n,m,b,i) # bytes lidos até agora, último e penúltimo número, se é pacote de tamanho, quantidade de bytes de cabeçalho lidos até agora
+					# suposto nome do arquivo, número do pacote, quantos pacotes faltam até o último e se tem essa informação (é pacote de tamanho), bytes desse pacote lidos até agora, último e penúltimo número, pacotes por rajada (janela) e bytes por pacote
+					print('ERROR\t',repr(f),n,m,b,i,j,k) 
 
 				 
 					
-				print(f,n,m,b,i)
+				# file name, package number, last package number if it has this information, header size (bytes), burst size (packages), package size (bytes) 	
+				print(f, n, m, b, i, j, k) 
 				if not len(f):	
 					continue
 
@@ -296,13 +326,20 @@ class chat:
 				self.files[f]['last'] = n
 				
 
+				if len(self.files[f]['data']) % self.burst == 1:					
+					
+					print('Sending burst ACK')
+				
 				
 				if b or not n:
 					self.files[f]['size'] = n + m + 1
 					print('Size:',self.files[f]['size'],len(self.files[f]['data']))
 					if k:
 						self.size = k
-						print('Package size:',k,self.size)
+						if j:
+							self.burst = j
+							print('Burst size:',j)
+						print('Package size:',k)
 						
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					dt = ti - self.files[f]['start']
@@ -315,9 +352,7 @@ class chat:
 						k.sort()
 						for c in k:
 							file.write(self.files[f]['data'][c])
-						#		print(c, len(self.files[f][c]), 'bytes')
-						#	else:
-						#		print(c, len(self.files[f]) - META, 'pacotes')	
+							
 					print(f,'saved.')	
 					self.files.pop(f)	
 
