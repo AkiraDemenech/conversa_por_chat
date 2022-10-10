@@ -7,6 +7,9 @@ import threading
 import tkinter 
 import time
 
+import locale
+locale.setLocale(locale.LC_ALL, 'pt_BR.UTF-8')
+
 print(end='.') # o terceiro ponto avisa a definição das classes 
 LOG = 'ip_port.log'
 SEP = '\t'
@@ -296,7 +299,7 @@ class chat:
 				if len(self.files[f]['data']) == self.files[f]['size']:
 					dt = ti - self.files[f]['start']
 					sz = self.files[f]['size'] * self.size
-					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],f'\t{dt} s\n'.replace('.',','), (f'{sz:,} bytes ({sz/(1024**2):,} MB = {sz/(1024*128):,} Mb)\t').replace(',',';').replace('.', ',').replace(';', '.'),f'{sz/(1024 * 128 * dt):,} Mb/s'.replace('.',';').replace(',','.').replace(';',',') if dt else '')
+					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.3f', dt, grouping=True),'s\n', locale.format_string('%.3f', sz, grouping=True), 'bytes (',locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.3f', sz / (1024 * 128 * dt), grouping=True) + 'Mb/s') if dt else '')
 					self.files[f]['end'] = ti
 					
 					with open(f, 'wb') as file:
@@ -336,6 +339,7 @@ class chat:
 
 
 print('.')
+# ponto final avisa o fim das definições
 
 if __name__ == '__main__':		
 	main().start()	
