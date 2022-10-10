@@ -370,6 +370,17 @@ class chat:
 					dt = ti - self.files[f]['start']
 					sz = self.files[f]['size'] * self.size
 					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' Mb/s') if dt else '')
+					repeated = len(self.files[f]['repeated'])
+					print(locale.format_string('%d', repeated + self.files[f]['size'], grouping=True), 'packages received:')
+					
+					print(locale.format_string('%d', self.files[f]['size'], grouping=True), 'unique packages,')
+
+					
+					print(locale.format_string('%d', repeated, grouping=True), 'repeated packages:')
+					for n, l in self.files[f]['repeated']: 
+						print('\t', n, '\t', l)
+
+
 					self.files[f]['end'] = ti
 					
 					with open(f, 'wb') as file:
