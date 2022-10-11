@@ -15,6 +15,7 @@ LOG = 'ip_port.log'
 SEP = '\t'
 
 BURST = 4
+TIMEOUT = 25
 SIZE = 1500
 
 tcp = lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -174,7 +175,7 @@ class chat:
 
 		self.size = SIZE
 		self.burst = BURST
-		self.burst_ack_timeout = 100 #ms
+		self.burst_ack_timeout = TIMEOUT #ms
 		self.burst_ack = {}
 
 		
@@ -258,8 +259,9 @@ class chat:
 				
 
 			
-			print('Sending:\t',name,c)
+			
 			self.connection.sendall(msg)	
+			print('Sending:\t', name, c)
 			
 			burst.insert(0, (name, c))
 			self.sending_files[(name, c)] = msg
@@ -271,7 +273,7 @@ class chat:
 				time.sleep(1 / 100) 
 				continue
 
-			print('Burst')
+			print('Burst:\t',len(self.sending),'left')
 
 			for t in range(self.burst_ack_timeout):
 				if c in self.burst_ack:
@@ -283,10 +285,10 @@ class chat:
 				for name, c in burst:
 					self.sending.insert(0,(c,name,self.sending_files[(name,c)]))
 				lost.extend(burst)
-				burst.clear()	
 					
 				
 				self.burst_ack_timeout <<= 1 # dobramos o timeout, caso seja lentidão na rede	
+			burst.clear()	
 
 		tf = time.time()		
 
@@ -301,6 +303,9 @@ class chat:
 
 
 			
+	def send_burst_ack (self, file, package):		
+
+		self.connection.sendall(('/-a/' + hex(len(self.files[file]['data']) - 1)[2:] + '/' + hex(package)[2:] + '/\\').zfill(self.size).encode())
 
 	def mainloop (self):	
 		with self.connection:
@@ -348,26 +353,37 @@ class chat:
 
 						
 				if not f in self.files:
+
+					
 					
 					print('Starting',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6])
 					self.files[f] = {'size':None,
 									'last':False,
 									'start':ti,'end':ti,
 									'repeated': [],
+									'done':False,
 									'data':{}}
 				
 
 				if n in self.files[f]['data']: 
 					self.files[f]['repeated'].append((n, self.files[f]['last']))
-				else:	
-					
-					if len(self.files[f]['data']) == self.files[f]['size'] or not (len(self.files[f]['data']) % self.burst):					
-					#	Se soma mais um pacote e isso completa o tamanho de uma rajada (janela) 
-						self.connection.sendall(('/-a/' + hex(len(self.files[f]['data']))[2:] + '/' + hex(n)[2:] + '/\\').zfill(self.size).encode())
-						print('Sending burst ACK')
+				else:											
+
+										
+					 
+						
+						
+						
 
 					self.files[f]['data'][n] = msg[i:]	
 					self.files[f]['last'] = n	
+
+					if len(self.files[f]['data']) % self.burst == 1:
+
+						self.send_burst_ack(f, n)
+						print('Sending burst ACK')
+
+					
 
 				
 				
@@ -385,10 +401,14 @@ class chat:
 						print('Package size:',self.size)
 						
 				if len(self.files[f]['data']) == self.files[f]['size']:
+					self.send_burst_ack(f, n)
+					print('Sending final burst ACK')
 					dt = ti - self.files[f]['start']
 					sz = self.files[f]['size'] * self.size
 					print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' successful Mb/s') if dt else '')
 					repeated = len(self.files[f]['repeated'])
+				#	useful = self.files[f]['size']
+				#	total = 
 					print(locale.format_string('%d', repeated + self.files[f]['size'], grouping=True), 'packages received:')
 					
 					print(locale.format_string('%d', self.files[f]['size'], grouping=True), 'unique packages,')
@@ -398,7 +418,14 @@ class chat:
 					for n, l in self.files[f]['repeated']: 
 						print('\t', n, '\t', l)
 
+					if self.files[f]['done']:	
+						print('File already saved.')
+						continue
 
+				#	repeated = list(self.files[f]['repeated'])
+				#	repeated.sort()
+
+				#	print(locale.format_string('%d', , grouping=True), 'lost packages.')
 					self.files[f]['end'] = ti
 					
 					with open(f, 'wb') as file:
@@ -407,8 +434,9 @@ class chat:
 						for c in k:
 							file.write(self.files[f]['data'][c])
 							
-					print(f,'saved.')	
-					self.files.pop(f)	
+					print(f,'saved.\n\r')	
+					self.files[f]['done'] = True
+				#	self.files.pop(f)	
 
 					paragraph = tkinter.Frame(self.main.chat)
 					paragraph.pack(fill=tkinter.X)
