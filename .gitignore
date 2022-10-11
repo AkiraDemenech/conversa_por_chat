@@ -8,6 +8,9 @@
 *.wmv
 *.mp4
 *.mp3
+*.csv
+*.xlsx
+*.docx
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

@@ -16,7 +16,7 @@ SEP = '\t'
 
 BURST = 4
 TIMEOUT = 25
-SIZE = 1500
+SIZE = 1000
 
 tcp = lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 udp = lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -216,11 +216,9 @@ class chat:
 				print('Waiting',len(self.sending))
 				time.sleep(len(self.sending)/(1 + len(self.sending)))
 				
-			
 			# primeiro pacote do arquivo
 			pre = f'{hex(self.burst)[2:]}/{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
 			pos = '/' + name + '\\'
-
 			queue.insert(0, (False, name, (pre + ('0' * (self.size - len(pre) - len(pos))) + pos).encode()))
 
 			print(name,len(queue),self.size)
@@ -244,7 +242,6 @@ class chat:
 		self.main.bind('<Return>', self.main.msg.send.function)
 
 	def send_file (self):
-
 		
 		lost = []
 		burst = []
@@ -299,10 +296,8 @@ class chat:
 		for f, l in lost:
 			print(f, '\t', l)
 
-			
 
 
-			
 	def send_burst_ack (self, file, package):		
 
 		self.connection.sendall(('/-a/' + hex(len(self.files[file]['data']) - 1)[2:] + '/' + hex(package)[2:] + '/\\').zfill(self.size).encode())
@@ -338,7 +333,6 @@ class chat:
 					print('ERROR\t',repr(f),n,m,b,i,j,k) 
 
 				 
-					
 				# file name, package number, last package number if it has this information, header size (bytes), burst size (packages), package size (bytes) 	
 				print(f, n, m, b, i, j, k) 
 				if not len(f):	
@@ -363,8 +357,6 @@ class chat:
 									'repeated': [],
 									'done':False,
 									'data':{}}
-				
-
 				if n in self.files[f]['data']: 
 					self.files[f]['repeated'].append((n, self.files[f]['last']))
 				else:											
