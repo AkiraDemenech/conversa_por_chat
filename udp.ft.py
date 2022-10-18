@@ -16,7 +16,7 @@ SEP = '\t'
 
 BURST = 4
 TIMEOUT = 25
-SIZE = 1000
+SIZE = 500
 
 udp = lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -276,7 +276,7 @@ class chat:
 				lost.extend(burst)
 					
 				
-				self.burst_ack_timeout <<= 1 # dobramos o timeout, caso seja lentidão na rede	
+					
 			burst.clear()	
 
 		tf = time.time()		
