@@ -16,7 +16,7 @@ SEP = '\t'
 
 BURST = 4
 TIMEOUT = 25
-SIZE = 500
+SIZE = 1500
 
 udp = lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
@@ -201,7 +201,7 @@ class chat:
 
 			while len(self.sending) > 0:		
 				print('Waiting',len(self.sending))
-				time.sleep(len(self.sending)/(1 + len(self.sending)))
+				#time.sleep(len(self.sending)/(1 + len(self.sending)))
 				
 			# primeiro pacote do arquivo
 			pre = f'{hex(self.burst)[2:]}/{hex(self.size)[2:]}/{hex(len(queue))[2:]}|/'
@@ -259,7 +259,7 @@ class chat:
 
 			if (c % self.burst) and len(self.sending):
 				# espera entre envio pacotes para garantir integridade na leitura do header
-				time.sleep(1 / 100) 
+				#time.sleep(1 / 100) 
 				continue
 
 			print('Burst:\t',len(self.sending),'left')
