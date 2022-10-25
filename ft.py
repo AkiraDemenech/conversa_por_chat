@@ -15,10 +15,6 @@ print(end='.') # o terceiro ponto avisa a definição das classes
 LOG = 'ip_port.log'
 SEP = '\t'
 
-
-
-
-
 class socket_interface:
 
 	socket = address = dest = None
@@ -126,7 +122,16 @@ class udp (socket_interface):
 
 		while True:
 
-			msg, address = self.socket.recvfrom(SIZE)
+			try:
+				msg, address = self.socket.recvfrom(SIZE)
+			except ConnectionResetError:				
+				self.socket.close()
+				self.connection(socket.socket(socket.AF_INET, socket.SOCK_DGRAM)) 	
+				self.bind(self.address)
+				for c in self.connections:
+					self.connections[c].connection(self.socket)
+				print('Reset connection')	
+				continue
 			if not address in self.connections:
 				
 												
@@ -135,11 +140,6 @@ class udp (socket_interface):
 				
 
 			self.connections[address].msg_callback(msg)	
-
-
-	
-
-
 
 
 protocol = udp
@@ -152,9 +152,6 @@ class main:
 	def __init__ (self):
 		self.main = tkinter.Tk()
 		self.active = True
-
-				
-
 		self.main.title(protocol.__name__.upper() + ' chat (File transfer)') # mudando o título da janela principal 
 
 	def start (self):	
@@ -208,18 +205,7 @@ class main:
 				print('Insira uma porta de até 2 bytes')
 				return 
 			
-			self.main.address.start.config(command=self.client,text='Connect')
-			tkinter.Label(self.main.address, text='Listening:\n' + str(self.address)).pack()	
-			print('Server address:\t',self.address)
-
-
-
-				
-
-					
-
-						
-
+			
 
 
 			self.socket = protocol(self.address)
@@ -229,6 +215,10 @@ class main:
 
 			with open(LOG,'w') as log:
 				print(*self.address,sep=SEP,file=log)							
+
+			self.main.address.start.config(command=self.client,text='Connect')
+			tkinter.Label(self.main.address, text='Listening:\n' + str(self.address)).pack()	
+			print('Server address:\t',self.address)
 
 			
 		except ValueError:
@@ -243,17 +233,7 @@ class main:
 
 		try:
 			address = self.main.address.ip.get().strip(), int(self.main.address.port.get())					
-
-			
-
 			print('Connecting to',address)
-
-			
-
-			
-
-					 						
-
 			chat(self.main, self.socket.connect(address), address, 'to')
 
 		except ValueError:
@@ -376,20 +356,11 @@ class chat:
 
 		while len(self.sending):
 			c, name, msg = self.sending.pop(0)			
-			  
-			
-				
-				
-
-			
-			
 			self.connection.sendall(msg)	
 			print('Sending:\t', name, c)
 			
 			burst.insert(0, (name, c))
 			self.sending_files[(name, c)] = msg
-
-			
 
 			if (c % self.burst) and len(self.sending):
 				# espera entre envio pacotes para garantir integridade na leitura do header
@@ -404,13 +375,13 @@ class chat:
 					break 
 				time.sleep(1 / 1000)
 			else:
-				print('Burst ACK timeout')
+				print('Burst ACK timeout',t)
 				for name, c in burst:
 					self.sending.insert(0,(c,name,self.sending_files[(name,c)]))
 				lost.extend(burst)
 					
 				
-			#	self.burst_ack_timeout <<= (self.burst_ack_timeout < 100) # dobramos o timeout, caso seja lentidão na rede	
+				self.burst_ack_timeout <<= (self.burst_ack_timeout < 100) # dobramos o timeout, caso seja lentidão na rede	
 			burst.clear()	
 
 		tf = time.time()		
@@ -429,8 +400,6 @@ class chat:
 		self.connection.sendall(('/-a/' + hex(len(self.files[file]['data']) - 1)[2:] + '/' + hex(package)[2:] + '/\\').zfill(SIZE).encode())
 
 	def mainloop (self, msg):	
-		
-				
 
 		f = ''
 		j = k = n = m = i = b = False
@@ -467,12 +436,8 @@ class chat:
 
 				
 		ti = time.time()
-				
-
 						
 		if not f in self.files:
-
-					
 					
 			print('Starting',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6])
 			self.files[f] = {
@@ -484,18 +449,10 @@ class chat:
 									'data':{}
 							}
 							
-
-
 		if n in self.files[f]['data']: 
 			self.files[f]['repeated'].append((n, self.files[f]['last']))
 			
 		else:											
-
-										
-					 
-						
-						
-						
 
 			self.files[f]['data'][n] = msg[i:]	
 			self.files[f]['last'] = n	
@@ -504,13 +461,6 @@ class chat:
 
 				self.send_burst_ack(f, n)
 				print('Sending burst ACK')
-
-					
-
-				
-				
-				
-				
 				
 		if b or not n:
 			self.files[f]['size'] = n + m + 1
@@ -537,10 +487,7 @@ class chat:
 			print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' successful Mb/s') if dt else '')
 			repeated = len(self.files[f]['repeated'])		
 			print(locale.format_string('%d', repeated + self.files[f]['size'], grouping=True), 'packages received:')
-					
 			print(locale.format_string('%d', self.files[f]['size'], grouping=True), 'unique packages,')
-
-					
 			print(locale.format_string('%d', repeated, grouping=True), 'repeated packages:')
 			for n, l in self.files[f]['repeated']: 
 				print('\t', n, '\t', l)
@@ -550,11 +497,7 @@ class chat:
 			if self.files[f]['done']:	
 				print('File already saved.')
 				return
-
-			
 					
-							
-
 			with open(f, 'wb') as file:
 				k = list(self.files[f]['data'])
 				k.sort()
@@ -573,21 +516,10 @@ class chat:
 					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()					
 				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()
 				self.last = t		
-		 					
-					
-
-						
-
-				
-				
 			
 	def destroy (self):
 		self.active = False
 		self.main.destroy()
-
-
-
-
 
 print('.') 
 # ponto final avisa o fim das definições
