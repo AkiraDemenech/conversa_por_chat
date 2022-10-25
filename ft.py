@@ -19,7 +19,6 @@ BURST = 2
 
 SIZE = 1500
 
-protocol = tcp
 class socket_interface:
 
 	socket = address = dest = None
@@ -47,6 +46,10 @@ class socket_interface:
 	def listen (self):	
 		
 		return
+
+	def sleep (self):
+
+		return	
 
 	def mainloop (self):		
 		
@@ -81,15 +84,19 @@ class tcp (socket_interface):
 			connection = tcp(connection = connection)
 			connection.dest_address(address)
 
-			print('Connection callback:')
+			
 			self.conn_callback(connection, address)
 
 	def mainloop (self):		
 
 		while True:
 
-			print('Message callback:')	
+				
 			self.msg_callback(self.socket.recv(SIZE))
+
+	def sleep (self):		
+
+		time.sleep(1 / 100)
 
 class udp (socket_interface): 
 	def __init__ (self, address = None, connection = None):
@@ -98,10 +105,13 @@ class udp (socket_interface):
 		self.connections = {}
 	
 	def connect (self, address):
+		
 		connection = udp(connection = self.socket)
 		#connection.address = self.address
 		connection.dest_address(address)
 		
+		
+		self.connections[address] = connection
 		return connection
 
 	
@@ -118,13 +128,14 @@ class udp (socket_interface):
 
 			msg, address = self.socket.recvfrom(SIZE)
 			if not address in self.connections:
-				conn = self.connect(address)
-				self.connection[address] = conn
-				self.conn_callback(conn, address)
-				print('Conectado com',conn, address)
+				
+												
+				self.conn_callback(self.connect(address), address)
+				
 				
 
-			self.connection[address].msg_callback(msg)	
+			self.connections[address].msg_callback(msg)	
+
 
 	
 
@@ -141,7 +152,7 @@ class main:
 
 				
 
-		self.main.title('TCP chat (File transfer)') # mudando o título da janela principal 
+		self.main.title('Chat (File transfer)') # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
@@ -208,9 +219,9 @@ class main:
 
 
 
-			server = protocol(self.address)
-			server.connection_callback(self.connect)
-			threading.Thread(target=server.listen).start()
+			self.socket = protocol(self.address)
+			self.socket.connection_callback(self.connect)
+			threading.Thread(target=self.socket.listen).start()
 			
 
 			with open(LOG,'w') as log:
@@ -234,13 +245,13 @@ class main:
 
 			print('Connecting to',address)
 
-			client = protocol()
+			
 
-			client.connect(address)
+			
 
 					 						
 
-			chat(self.main, client, address, 'to')
+			chat(self.main, self.socket.connect(address), address, 'to')
 
 		except ValueError:
 			print('Corrija a porta para um inteiro válido')	
@@ -297,12 +308,13 @@ class chat:
 
 	def send (self):	
 	#	self.main.msg.send.config(state=tkinter.DISABLED)
-		self.main.bind('<Return>', print)
+		
 		filename = self.main.msg.text.get().strip()
 		if len(filename):
 			name = filename.split('/')[-1].split('\\')[-1]
 			queue = []
 			with open(filename, 'rb') as file:				
+				self.main.bind('<Return>', print)
 				c = 0
 				while True:
 					c += 1
@@ -378,7 +390,7 @@ class chat:
 
 			if (c % self.burst) and len(self.sending):
 				# espera entre envio pacotes para garantir integridade na leitura do header
-				time.sleep(1 / 100) 
+				self.connection.sleep() 
 				continue
 
 			print('Burst:\t',len(self.sending),'left')
@@ -395,7 +407,7 @@ class chat:
 				lost.extend(burst)
 					
 				
-				self.burst_ack_timeout <<= 1 # dobramos o timeout, caso seja lentidão na rede	
+			#	self.burst_ack_timeout <<= (self.burst_ack_timeout < 100) # dobramos o timeout, caso seja lentidão na rede	
 			burst.clear()	
 
 		tf = time.time()		
