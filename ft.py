@@ -15,9 +15,9 @@ print(end='.') # o terceiro ponto avisa a definição das classes
 LOG = 'ip_port.log'
 SEP = '\t'
 
-BURST = 2
 
-SIZE = 1500
+
+
 
 class socket_interface:
 
@@ -117,7 +117,7 @@ class udp (socket_interface):
 	
 
 	def sendall (self, data): # envia os bytes para o endereço conectado		
-		print(self.dest)
+		
 		c = 0
 		while c < len(data):
 			c += self.socket.sendto(data[c:], self.dest)	
@@ -142,7 +142,10 @@ class udp (socket_interface):
 
 
 
+protocol = udp
 TIMEOUT = 10 + (15 * (protocol == udp))
+BURST = 4
+SIZE = 1500
 
 class main:
 
@@ -152,7 +155,7 @@ class main:
 
 				
 
-		self.main.title('Chat (File transfer)') # mudando o título da janela principal 
+		self.main.title(protocol.__name__.upper() + ' chat (File transfer)') # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
