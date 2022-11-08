@@ -280,19 +280,21 @@ class chat:
 		self.main.bind('<Return>', self.main.msg.send.function)
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
-		self.burst = BURST
-		self.burst_ack_timeout = TIMEOUT #ms
+		
 		self.burst_ack = {}
 
 		
 
 		
-		print('Chatting with',self.address,'(File transfer)')
+		print('Chatting with',self.address,'(Speed test)')
 		
 
 	def send (self):	
 		self.main.msg.send.config(state=tkinter.DISABLED)
 		
+		pacote = TEST_TEXT * (SIZE // len(TEST_TEXT))
+		pacote += '\0' * (SIZE - len(pacote))
+
 		# iniciar teste 
 
 		self.main.msg.send.config(state=tkinter.ACTIVE)	
