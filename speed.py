@@ -143,16 +143,17 @@ class udp (socket_interface):
 
 
 protocol = udp
-TIMEOUT = 10 + (15 * (protocol == udp))
-BURST = 4
+TEST_TEXT = 'teste de rede *2022*'
+TEST_TIME = 20 
 SIZE = 500
+
 
 class main:
 
 	def __init__ (self):
 		self.main = tkinter.Tk()
 		self.active = True
-		self.main.title(protocol.__name__.upper() + ' chat (File transfer)') # mudando o título da janela principal 
+		self.main.title(protocol.__name__.upper() + ' chat (Speed test)') # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
@@ -290,108 +291,28 @@ class chat:
 		
 
 	def send (self):	
-	#	self.main.msg.send.config(state=tkinter.DISABLED)
+		self.main.msg.send.config(state=tkinter.DISABLED)
 		
-		filename = self.main.msg.text.get().strip()
-		if len(filename):
-			name = filename.split('/')[-1].split('\\')[-1]
-			queue = []
-			with open(filename, 'rb') as file:				
-				self.main.bind('<Return>', print)
-				c = 0
-				while True:
-					c += 1
-					head = (f'{hex(c)[2:]}/{name}\\').encode()
+		# iniciar teste 
 
-					if len(head) < SIZE:
-						body = file.read(SIZE - len(head))
-					else:	
-						body = file.read(SIZE)
-						print('File too large:\t',c,name)															
-						return
-					
-					# último pacote do arquivo
-					if len(body) + len(head) < SIZE:
-						queue.append((c,name,('|'*(SIZE-len(body)-len(head))).encode() + head + body))
-						break
-					queue.append((c, name, head + body))																	 
-					 	
-						
-
-			while len(self.sending) > 0:		
-				print('Waiting',len(self.sending))
-				time.sleep(len(self.sending)/(1 + len(self.sending)))
-				
-			# primeiro pacote do arquivo
-			pre = f'{hex(self.burst)[2:]}/{hex(SIZE)[2:]}/{hex(len(queue))[2:]}|/'
-			pos = '/' + name + '\\'
-			queue.insert(0, (False, name, (pre + ('0' * (SIZE - len(pre) - len(pos))) + pos).encode()))
-
-			print(name,len(queue),SIZE)
-			self.sending.extend(queue)	
-
-			threading.Thread(target=self.send_file).start()
-			
-			
-			self.main.msg.text.delete(0,tkinter.END)
-			paragraph = tkinter.Frame(self.main.chat)
-			t = time.localtime()[:5]
-			if t != self.last:
-				if t[2] != self.last[2]:
-					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()
-				self.last = t
-				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()								
-			tkinter.Label(paragraph, text=filename).pack(side=tkinter.RIGHT)	
-			paragraph.pack(fill=tkinter.X) 
-
-	#	self.main.msg.send.config(state=tkinter.ACTIVE)	
+		self.main.msg.send.config(state=tkinter.ACTIVE)	
 		self.main.bind('<Return>', self.main.msg.send.function)
 
-	def send_file (self):
+	def send_test (self):
 		
-		lost = []
-		burst = []
-		self.burst_ack.clear()
 		ti = time.time()
+		c = 0
 
-		while len(self.sending):
-			c, name, msg = self.sending.pop(0)			
-			self.connection.sendall(msg)	
-			print('Sending:\t', name, c)
+		while True:
+			tf = time.time()			
+			if tf - ti >= TEST_TIME:	
+				break
 			
-			burst.insert(0, (name, c))
-			self.sending_files[(name, c)] = msg
+			c += 1 	
 
-			if (c % self.burst) and len(self.sending):
-				# espera entre envio pacotes para garantir integridade na leitura do header
-				self.connection.sleep() 
-				continue
-
-			print('Burst:\t',len(self.sending),'left')
-
-			for t in range(self.burst_ack_timeout):
-				if c in self.burst_ack:
-					print('Burst ACK (',len(self.burst_ack),'):\tpackage',self.burst_ack[c],'\t',t,'ms')
-					break 
-				time.sleep(1 / 1000)
-			else:
-				print('Burst ACK timeout',t)
-				for name, c in burst:
-					self.sending.insert(0,(c,name,self.sending_files[(name,c)]))
-				lost.extend(burst)
-					
 				
-				self.burst_ack_timeout <<= (self.burst_ack_timeout < 100) # dobramos o timeout, caso seja lentidão na rede	
-			burst.clear()	
 
-		tf = time.time()		
-
-		print(locale.format_string('%.6f', tf - ti, grouping=True),'s\t', (locale.format_string('%.6f', (len(lost) + c + 1) * SIZE / ((tf - ti) * (2**17)), grouping=True) + ' total Mb/s'))	
-		print(locale.format_string('%d', len(lost) + c + 1, grouping=True), 'sent (' + locale.format_string('%d', c + 1, grouping=True), 'unique packages),')
-		print(locale.format_string('%d', len(lost), grouping=True), 'lost (' + locale.format_string('%d', len(set(lost)), grouping=True), 'unique packages):')
 		
-		for f, l in lost:
-			print(f, '\t', l)
 
 
 
@@ -409,7 +330,7 @@ class chat:
 			i += 1	
 			if c == 124:	#|
 				if not b:
-					print('EOF (size)')
+					
 					b = True
 			elif c == 47:	#/	
 				j = k	

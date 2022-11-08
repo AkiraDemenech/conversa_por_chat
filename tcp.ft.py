@@ -16,7 +16,7 @@ SEP = '\t'
 
 BURST = 4
 TIMEOUT = 25
-SIZE = 1000
+SIZE = 1500
 
 tcp = lambda: socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 udp = lambda: socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
