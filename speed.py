@@ -145,8 +145,10 @@ class udp (socket_interface):
 protocol = udp
 TEST_TEXT = 'teste de rede *2022*'
 TEST_TIME = 20 
+TEST_TURNS = 4
 SIZE = 500
 
+MSG_TEXT = TEST_TEXT * (SIZE / len(TEST_TEXT)).__ceil__()
 
 class main:
 
@@ -313,132 +315,71 @@ class chat:
 			c += 1 	
 
 				
+	def header (self, number = 0, finite_test = False, r = False):			
 
 		
 
 
+	def encode_in_bytes (self, n, end=b'\0'):	
 
-	def send_burst_ack (self, file, package):		
+		v = b = 0
 
-		self.connection.sendall(('/-a/' + hex(len(self.files[file]['data']) - 1)[2:] + '/' + hex(package)[2:] + '/\\').zfill(SIZE).encode())
+		while n > 0:
+
+			v = (v << 7) + (n % 128) + 128
+			n >>= 7
+			b += 1
+		
+		if b:
+			return v.to_bytes(b, 'big') + end
+		return (128).to_bytes(1, 'big') + end	
+
+				
+					
+
+				 
+
+				
+						
+					
+							
+			
+	
 
 	def mainloop (self, msg):	
 
-		f = ''
-		j = k = n = m = i = b = False
+		n = i = f = t = r = False
+		v = []
 				
-		while len(msg) > i:
-			c = msg[i]
-			i += 1	
-			if c == 124:	#|
-				if not b:
-					
-					b = True
-			elif c == 47:	#/	
-				j = k	
-				k = m
-				m = n
-				n = int(f, 16)
-				f = ''
-			elif c == 92:	#\
-				break
-			else:
-				f += chr(c)
+		while len(msg) > f: 
+			c = msg[f]
+			
+			if c:	
+				n = (n << 7) + c - 128 
+			else:	#\0	
+				if i >= f:
+					break # acaba com \0\0
+				r = t	
+				t = n
+
+				v.append(n)
+				n = False #ord(msg[i:f].decode()) - 128
+				
+				i = f + 1
+			f += 1		
+			
 		else:		
-			# suposto nome do arquivo, número do pacote, quantos pacotes faltam até o último e se tem essa informação (é pacote de tamanho), bytes desse pacote lidos até agora, último e penúltimo número, pacotes por rajada (janela) e bytes por pacote
-			print('ERROR\t',repr(f),n,m,b,i,j,k) 
+			# número do pacote, número do teste, índices inicial e final de leitura do texto, lista de valores
+			print('ERROR\t',n,t,i,f,v) 
 
 				 
-		# file name, package number, last package number if it has this information, header size (bytes), burst size (packages), package size (bytes) 	
-		print(f, n, m, b, i, j, k) 
-		if not len(f):	
-			if k == -10: 
-				self.burst_ack[m] = n
-				print('Burst ACK received\t-a', m, n)
-			return
-
 				
-		ti = time.time()
 						
-		if not f in self.files:
+
+
 					
-			print('Starting',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6])
-			self.files[f] = {
-									'size':None,
-									'last':False,
-									'start':ti,'end':ti,
-									'repeated': [],
-									'done':False,
-									'data':{}
-							}
 							
-		if n in self.files[f]['data']: 
-			self.files[f]['repeated'].append((n, self.files[f]['last']))
-			
-		else:											
 
-			self.files[f]['data'][n] = msg[i:]	
-			self.files[f]['last'] = n	
-
-			if len(self.files[f]['data']) % self.burst == 1:
-
-				self.send_burst_ack(f, n)
-				print('Sending burst ACK')
-				
-		if b or not n:
-			self.files[f]['size'] = n + m + 1
-			print('Size:',self.files[f]['size'],len(self.files[f]['data']))
-			if k:
-				global SIZE
-				SIZE = k
-				if j:
-					self.burst = j
-					print('Burst size:',j)
-				print('Package size:',SIZE)
-			if self.files[f]['done'] and n <= self.burst:
-				self.files[f]['done'] = False
-				self.files[f]['data'].clear()
-				self.files[f]['start'] = ti
-				self.files[f]['repeated'].clear()	
-				return 
-						
-		if len(self.files[f]['data']) == self.files[f]['size']:
-			self.send_burst_ack(f, n)
-			print('Sending final burst ACK')
-			dt = ti - self.files[f]['start']
-			sz = self.files[f]['size'] * SIZE
-			print('Saving',f,'\t','%d-%d-%d_%d-%d-%d' %time.localtime(ti)[:6],'\t',locale.format_string('%.6f', dt, grouping=True),'s\n', locale.format_string('%d', sz, grouping=True), 'bytes (' + locale.format_string('%.3f', sz / (1024**2), grouping=True),'MB =',locale.format_string('%.3f', sz / (1024 * 128), grouping=True),'Mb)\t', (locale.format_string('%.6f', sz / (1024 * 128 * dt), grouping=True) + ' successful Mb/s') if dt else '')
-			repeated = len(self.files[f]['repeated'])		
-			print(locale.format_string('%d', repeated + self.files[f]['size'], grouping=True), 'packages received:')
-			print(locale.format_string('%d', self.files[f]['size'], grouping=True), 'unique packages,')
-			print(locale.format_string('%d', repeated, grouping=True), 'repeated packages:')
-			for n, l in self.files[f]['repeated']: 
-				print('\t', n, '\t', l)
-
-			self.files[f]['end'] = ti	
-
-			if self.files[f]['done']:	
-				print('File already saved.')
-				return
-					
-			with open(f, 'wb') as file:
-				k = list(self.files[f]['data'])
-				k.sort()
-				for c in k:
-					file.write(self.files[f]['data'][c])
-							
-			print(f, 'saved.\n\r')	
-			self.files[f]['done'] = True					
-
-			paragraph = tkinter.Frame(self.main.chat)
-			paragraph.pack(fill=tkinter.X)
-			tkinter.Label(paragraph, text=f).pack(side=tkinter.LEFT)	
-			t = time.localtime()[:5]
-			if t != self.last:					
-				if self.last[2] != t[2]:
-					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()					
-				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()
-				self.last = t		
 			
 	def destroy (self):
 		self.active = False
