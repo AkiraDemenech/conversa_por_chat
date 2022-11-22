@@ -148,7 +148,7 @@ TEST_TIME = 20
 TEST_TURNS = 4
 SIZE = 500
 
-MSG_TEXT = TEST_TEXT * (SIZE / len(TEST_TEXT)).__ceil__()
+MSG_TEXT = (TEST_TEXT * (SIZE / len(TEST_TEXT)).__ceil__()).encode()
 
 class main:
 
@@ -201,11 +201,11 @@ class main:
 			self.address = self.main.address.ip.get().strip(), int(self.main.address.port.get())
 
 			if self.address[1] <= 1023:
-				print('Não insira uma porta privilegiada')
+				print('Unavailable port')
 				return
 
-			if self.address[1] > 65535:
-				print('Insira uma porta de até 2 bytes')
+			if self.address[1] >> 16:
+				print('Port too long')
 				return 
 			
 			
@@ -226,7 +226,7 @@ class main:
 			
 		except ValueError:
 
-			print('Insira um inteiro válido na porta')	
+			print('Invalid integer server port')	
 
 	def connect (self, connection, address):		
 
@@ -240,7 +240,7 @@ class main:
 			chat(self.main, self.socket.connect(address), address, 'to')
 
 		except ValueError:
-			print('Corrija a porta para um inteiro válido')	
+			print('Invalid integer client port')	
 
 		
 
@@ -283,10 +283,10 @@ class chat:
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
 		
-		self.burst_ack = {}
 
 		
 
+		self.download = False
 		
 		print('Chatting with',self.address,'(Speed test)')
 		
@@ -298,26 +298,45 @@ class chat:
 		pacote += '\0' * (SIZE - len(pacote))
 
 		# iniciar teste 
+		threading.Thread(target=self.send_test).start()
 
 		self.main.msg.send.config(state=tkinter.ACTIVE)	
 		self.main.bind('<Return>', self.main.msg.send.function)
 
-	def send_test (self):
+	def send_test (self, remaining_tests = False, ask_data = True):
 		
 		ti = time.time()
 		c = 0
 
-		while True:
+		while remaining_tests >= 0:
 			tf = time.time()			
 			if tf - ti >= TEST_TIME:	
 				break
 			
 			c += 1 	
 
+			package(c)
+
+		print([remaining_tests], c, 'sent')	
+		finish = package(c, remaining_tests, b'\x7f\0' * ask_data)
+
+		self.download = 0
+		while self.download <= 0: 
+			finish # envia pacotes de finalização 	
+
+			
+
 				
-	def header (self, number = 0, finite_test = False, r = False):			
+	def package (self, number = 0, test_number = False, r = b''):			
+
+		 
+
+		header = r + encode_in_bytes(test_number) + encode_in_bytes(number) + b'\0'
 
 		
+
+		return header + MSG_TEXT[:SIZE - len(header)]
+
 
 
 	def encode_in_bytes (self, n, end=b'\0'):	
@@ -326,13 +345,13 @@ class chat:
 
 		while n > 0:
 
-			v = (v << 7) + (n % 128) + 128
+			v = ((v + 1) << 7) + (n % 128) 
 			n >>= 7
 			b += 1
 		
 		if b:
 			return v.to_bytes(b, 'big') + end
-		return (128).to_bytes(1, 'big') + end	
+		return b'\x80' + end	
 
 				
 					
@@ -370,9 +389,16 @@ class chat:
 			
 		else:		
 			# número do pacote, número do teste, índices inicial e final de leitura do texto, lista de valores
-			print('ERROR\t',n,t,i,f,v) 
+			print('ERROR\t',n,t,r,i,f,v) 
 
 				 
+		if t > 0: 
+			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
+			print('FINISH\t', n, t, r)
+			self.upload = r
+			return
+
+		self.download += 1		 
 				
 						
 
