@@ -15,6 +15,8 @@ print(end='.') # o terceiro ponto avisa a definição das classes
 LOG = 'ip_port.log'
 SEP = '\t'
 
+SCALE_PREFIX = '', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'
+
 class socket_interface:
 
 	socket = address = dest = None
@@ -283,11 +285,11 @@ class chat:
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
 		
-
-		
-
 		self.download = False
 		self.upload = -2
+
+		self.download_data = 0
+		self.upload_data = -3
 		
 		print('Chatting with',self.address,'(Speed test)')
 		
@@ -313,15 +315,14 @@ class chat:
 			tf = time.time()			
 			if tf - ti >= TEST_TIME:	
 				break
-			
 			c += 1 	
 
 			package(c)
 
 		print([remaining_tests], c, 'sent')	
-		finish = package(c, self.encode_in_bytes(remaining_tests), b'\x7f\0' if ask_data else self.encode_in_bytes(self.download))
+		finish = package(c, self.encode_in_bytes(remaining_tests), b'\x7f\0' if ask_data else (self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download)))
 
-		self.download = 0
+		self.download = self.download_data = 0
 		while self.download <= 0: 
 			finish # envia pacotes de finalização 	
 
@@ -357,7 +358,17 @@ class chat:
 
 		return b'\x80' + end	
 			
+	def convert_size (self, v, k_div = 1024, k_if = 1000):
 
+		k = 0
+		while v > k_if:
+			v /= k_div			
+			k += 1
+
+		if type(v) == float and v.is_integer():	
+			v = int(v)
+
+		return v, k	
 				
 					
 
@@ -396,14 +407,34 @@ class chat:
 			# número do pacote, número do teste, índices inicial e final de leitura do texto, lista de valores
 			print('ERROR\t',n,t,r,i,f,v) 
 
-				 
 		if t > 0: 
-			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
-			print('FINISH\t', n, t, r)
+			threading.Thread(target=self.send_test, args=(t - 1)).start()
+			print('FINISH\t', n, t, r, v)
+			self.sent = n
 			self.upload = r
+			self.upload_data = v[2]
+			self.upload_size = v[1]
+			self.upload_time = v[0]
+			
+			data_size, data_scale = self.convert_size(SIZE * n)
+
+			p = f'Download {t}:\n\tSent {n} packages ({data_size} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {self.download} packages'
+			
+			paragraph = tkinter.Frame(self.main.chat)
+			t = time.localtime()[:5]
+			if t != self.last:
+				if t[2] != self.last[2]:
+					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()
+				self.last = t
+				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()								
+
+			tkinter.Label(paragraph, text=p).pack(side=tkinter.RIGHT)	
+
+			paragraph.pack(fill=tkinter.X) 
 			return
 
 		self.download += 1		 
+		self.download_data += len(msg)
 				
 						
 
