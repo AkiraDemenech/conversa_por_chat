@@ -287,6 +287,7 @@ class chat:
 		
 
 		self.download = False
+		self.upload = -2
 		
 		print('Chatting with',self.address,'(Speed test)')
 		
@@ -318,7 +319,7 @@ class chat:
 			package(c)
 
 		print([remaining_tests], c, 'sent')	
-		finish = package(c, remaining_tests, b'\x7f\0' * ask_data)
+		finish = package(c, self.encode_in_bytes(remaining_tests), b'\x7f\0' if ask_data else self.encode_in_bytes(self.download))
 
 		self.download = 0
 		while self.download <= 0: 
@@ -327,11 +328,11 @@ class chat:
 			
 
 				
-	def package (self, number = 0, test_number = False, r = b''):			
+	def package (self, number = 0, test_number = b'', r = b''):			
 
 		 
 
-		header = r + encode_in_bytes(test_number) + encode_in_bytes(number) + b'\0'
+		header = r + test_number + self.encode_in_bytes(number) + b'\0'
 
 		
 
@@ -341,17 +342,21 @@ class chat:
 
 	def encode_in_bytes (self, n, end=b'\0'):	
 
-		v = b = 0
+		v = b = c = 0
 
 		while n > 0:
 
-			v = ((v + 1) << 7) + (n % 128) 
+			v += ((n % 128) + 128) << c
 			n >>= 7
+			c += 8
 			b += 1
 		
 		if b:
 			return v.to_bytes(b, 'big') + end
+		if n:
+
 		return b'\x80' + end	
+			
 
 				
 					
