@@ -63,7 +63,8 @@ class tcp (socket_interface):
 		super().bind(address)	
 		
 	def connect (self, address):
-		connection = tcp(connection = self.socket.connect(address))
+		connection = tcp()
+		connection.socket.connect(address)
 		connection.dest_address(address)
 		return connection
 
@@ -142,7 +143,7 @@ class udp (socket_interface):
 			self.connections[address].msg_callback(msg)	
 
 
-protocol = udp
+protocol = tcp
 TIMEOUT = 10 + (15 * (protocol == udp))
 BURST = 4
 SIZE = 500
