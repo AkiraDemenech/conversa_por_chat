@@ -7,6 +7,7 @@ print(end='.') # o segundo ponto avisa a abertura da segunda dependência
 import threading  
 import tkinter 
 import time
+import math
 
 import locale
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -16,6 +17,8 @@ LOG = 'ip_port.log'
 SEP = '\t'
 
 SCALE_PREFIX = '', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'
+
+numf = lambda x: locale.format_string('%d' if type(x) == int else '%.3f', x, grouping=True)
 
 class socket_interface:
 
@@ -150,7 +153,7 @@ TEST_TIME = 20
 TEST_TURNS = 4
 SIZE = 500
 
-MSG_TEXT = (TEST_TEXT * (SIZE / len(TEST_TEXT)).__ceil__()).encode()
+MSG_TEXT = (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()
 
 class main:
 
@@ -261,7 +264,7 @@ class chat:
 		self.main.msg.pack(side=tkinter.BOTTOM, fill=tkinter.X)
 
 		self.main.msg.send = tkinter.Button(self.main.msg, text='Run', command=self.send)
-		self.main.msg.send.pack(side=tkinter.RIGHT)
+		self.main.msg.send.pack(side=tkinter.RIGHT, fill=tkinter.X)
 		self.main.msg.send.function = lambda e: self.main.msg.send.invoke()
 
 		
@@ -294,7 +297,7 @@ class chat:
 		
 
 	def send (self):	
-		self.main.msg.send.config(state=tkinter.DISABLED)
+		
 		
 		pacote = TEST_TEXT * (SIZE // len(TEST_TEXT))
 		pacote += '\0' * (SIZE - len(pacote))
@@ -302,27 +305,37 @@ class chat:
 		# iniciar teste 
 		threading.Thread(target=self.send_test).start()
 
-		self.main.msg.send.config(state=tkinter.ACTIVE)	
-		self.main.bind('<Return>', self.main.msg.send.function)
+		
 
-	def send_test (self, remaining_tests = False, ask_data = True):
+	def send_test (self, remaining_tests = TEST_TURNS, ask_data = True):
+		print('Sending....')
+		self.main.msg.send.config(state=tkinter.DISABLED)
+		self.main.bind('<Return>', print)
 		
 		ti = time.time()
-		tf = ti + TEST_TIME * (remaining_tests >= 0)
+		tf = ti + TEST_TIME * (remaining_tests > 0)
 		c = 0
 
 		while time.time() <= tf:
 			
 			c += 1 	
 
-			package(c)
+			self.connection.sendall(self.package(c))
 
-		print([remaining_tests], c, 'sent')	
-		finish = package(c, self.encode_in_bytes(remaining_tests), b'\x7f\0' if ask_data else (self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download)))
+		finish = self.package(c, self.encode_in_bytes(remaining_tests), b'\x7f\0' if ask_data else (self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download)))
+		print([remaining_tests], c, ' packages sent')	
+		
 
 		self.download = self.download_data = 0
 		while self.download <= 0: 
-			finish # envia pacotes de finalização 	
+			time.sleep(0.2)
+			print('Waiting for response')
+			self.connection.sendall(finish) # envia pacotes de finalização 	
+			time.sleep(0.1)
+			
+		self.main.msg.send.config(state=tkinter.ACTIVE)	
+		self.main.bind('<Return>', self.main.msg.send.function)	
+			
 
 			
 
@@ -352,8 +365,9 @@ class chat:
 		
 		if b:
 			return v.to_bytes(b, 'big') + end
-		if n:
 
+		
+			
 		return b'\x80' + end	
 			
 	def convert_size (self, v, k_div = 1024, k_if = 1000):
@@ -381,22 +395,23 @@ class chat:
 
 	def mainloop (self, msg):	
 
-		n = i = f = t = r = False
+		m = n = i = f = t = r = False
 		v = []
 				
 		while len(msg) > f: 
 			c = msg[f]
 			
 			if c:	
-				n = (n << 7) + c - 128 
+				m = (m << 7) + c - 128 
 			else:	#\0	
 				if i >= f:
 					break # acaba com \0\0
 				r = t	
 				t = n
 
-				v.append(n)
-				n = False #ord(msg[i:f].decode()) - 128
+				n = m
+				v.append(m)
+				m = False #ord(msg[i:f].decode()) - 128
 				
 				i = f + 1
 			f += 1		
@@ -406,33 +421,51 @@ class chat:
 			print('ERROR\t',n,t,r,i,f,v) 
 
 		if t > 0: 
-			threading.Thread(target=self.send_test, args=(t - 1)).start()
-			print('FINISH\t', n, t, r, v)
-			self.sent = n
-			self.upload = r
-			self.upload_data = v[2]
-			self.upload_size = v[1]
-			self.upload_time = v[0]
-			
-			data_size, data_scale = self.convert_size(SIZE * n)
-
-			p = f'Download {t}:\n\tSent {n} packages ({data_size} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {self.download} packages'
-			
-			paragraph = tkinter.Frame(self.main.chat)
-			t = time.localtime()[:5]
-			if t != self.last:
-				if t[2] != self.last[2]:
-					tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()
-				self.last = t
-				tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()								
-
-			tkinter.Label(paragraph, text=p).pack(side=tkinter.RIGHT)	
-
-			paragraph.pack(fill=tkinter.X) 
+			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
+		elif r > 0 or r == -1:	
+			if t == -2:
+				self.download += 1
+			else:	
+				self.connection.sendall(self.package(0, b'~\0', self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download)))
+		else:	
+			self.download += 1		 
+			self.download_data += len(msg)
 			return
 
-		self.download += 1		 
-		self.download_data += len(msg)
+		print('FINISH\t', n, t, r, v)
+		self.sent = n
+		self.upload = r
+		if len(v):
+			self.upload_time = v[0]
+			if len(v) > 1:
+				self.upload_size = v[1]
+				if len(v) > 2:
+					self.upload_data = v[2]
+				
+			
+			
+			
+		data_sent = self.upload_size * self.sent	
+		data_size, data_scale = self.convert_size(data_sent)
+		download_size, download_scale = self.convert_size(self.download_data)
+		download_speed, download_prefix = self.convert_size(self.download_data * 8 / self.upload_time)
+
+		p = f'Download {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent)}%)\n\t{numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s'
+			
+		paragraph = tkinter.Frame(self.main.chat)
+		t = time.localtime()[:5]
+		if t != self.last:
+			if t[2] != self.last[2]:
+				tkinter.Label(paragraph, text='%02d/%02d/%d' %t[2::-1]).pack()
+			self.last = t
+			tkinter.Label(paragraph, text='%02d:%02d' %t[3:]).pack()								
+
+		tkinter.Label(paragraph, text=p).pack(side=tkinter.RIGHT)	
+
+		paragraph.pack(fill=tkinter.X) 
+			
+
+		
 				
 						
 
