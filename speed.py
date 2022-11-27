@@ -335,11 +335,14 @@ class chat:
 			print('Waiting for response')
 			self.connection.sendall(finish) # envia pacotes de finalização 	
 			time.sleep(0.1)
+
+		
 			
 		self.main.msg.send.config(state=tkinter.ACTIVE)	
 		self.main.bind('<Return>', self.main.msg.send.function)	
 			
 
+		print('Responded')	
 			
 
 				
@@ -426,7 +429,7 @@ class chat:
 		if t > 0: 
 			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
 		elif (r > 0 or r == -1) and t != -2:	
-			self.connection.sendall(self.package(0, b'~\0', self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download)))
+			self.connection.sendall(self.package(0, b'~\0'))
 		else:		
 			self.download += 1		 
 			self.download_data += len(msg)
@@ -450,7 +453,7 @@ class chat:
 		download_size, download_scale = self.convert_size(self.download_data)
 		download_speed, download_prefix = self.convert_size(self.download_data * 8 / (self.download_time if self.download_time > 0 else 1))
 
-		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if n > 0 else 'The end.'
+		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
 		q = f'\nUpload {numf(t + 1)}:\n\tReceived {numf(self.upload_data)} Bytes' if r > 0 else 'Beginning'
 		print(q,p)
 
