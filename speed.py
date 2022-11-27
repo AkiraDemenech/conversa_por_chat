@@ -260,12 +260,11 @@ class chat:
 		self.main.msg = tkinter.Frame(self.main)
 		self.main.msg.pack(side=tkinter.BOTTOM, fill=tkinter.X)
 
-		self.main.msg.send = tkinter.Button(self.main.msg, text='Send', command=self.send)
+		self.main.msg.send = tkinter.Button(self.main.msg, text='Run', command=self.send)
 		self.main.msg.send.pack(side=tkinter.RIGHT)
 		self.main.msg.send.function = lambda e: self.main.msg.send.invoke()
 
-		self.main.msg.text = tkinter.Entry(self.main.msg)
-		self.main.msg.text.pack(side=tkinter.RIGHT, fill=tkinter.BOTH)
+		
 
 		
 
@@ -309,12 +308,11 @@ class chat:
 	def send_test (self, remaining_tests = False, ask_data = True):
 		
 		ti = time.time()
+		tf = ti + TEST_TIME * (remaining_tests >= 0)
 		c = 0
 
-		while remaining_tests >= 0:
-			tf = time.time()			
-			if tf - ti >= TEST_TIME:	
-				break
+		while time.time() <= tf:
+			
 			c += 1 	
 
 			package(c)
