@@ -24,6 +24,8 @@ class socket_interface:
 
 	socket = address = dest = None
 	conn_callback = msg_callback = print
+	connections = {}
+	parent = None
 
 	def connection_callback (self, callback):
 		self.conn_callback = callback
@@ -37,6 +39,24 @@ class socket_interface:
 
 	def connection (self, conn):	
 		self.socket = conn
+
+	def close (self, dest):	
+		if dest in self.connections: 
+			print('Closing connection with',dest)
+			self.connections.pop(dest)
+		else:	
+			print('Connection with',dest,'not found')
+
+		if self.parent == None: 
+			print('No parent found')
+			return 
+
+		if self.parent == self:
+			print('Self-parenting')
+			return 
+
+		print('Closing @ parent')
+		self.parent.close(dest)
 
 	def bind (self, address):
 		if address == None:
@@ -69,8 +89,11 @@ class tcp (socket_interface):
 	def connect (self, address):
 		print(address)
 		connection = tcp()
+
+		connection.parent = self
 		connection.socket.connect(address)		
 		connection.dest_address(address)
+		
 		return connection
 
 	def sendall (self, data):	
@@ -85,6 +108,7 @@ class tcp (socket_interface):
 
 			connection = tcp(connection = connection)
 			connection.dest_address(address)
+			connection.parent = self
 
 			
 			self.conn_callback(connection, address)
@@ -100,10 +124,13 @@ class tcp (socket_interface):
 	
 
 class udp (socket_interface): 
+	
+
+
 	def __init__ (self, address = None, connection = None):
 		super().connection(connection if connection != None else socket.socket(socket.AF_INET, socket.SOCK_DGRAM))
 		super().bind(address)
-		self.connections = {}
+		
 	
 	def connect (self, address):
 		
@@ -111,6 +138,7 @@ class udp (socket_interface):
 		#connection.address = self.address
 		connection.dest_address(address)
 		
+		connection.parent = self 
 		
 		self.connections[address] = connection
 		return connection
@@ -147,7 +175,7 @@ class udp (socket_interface):
 			self.connections[address].msg_callback(msg)	
 
 
-protocol = tcp#udp
+protocol = udp
 TEST_TEXT = 'teste de rede *2022*'
 TEST_TIME = 20 
 TEST_TURNS = 2
@@ -268,6 +296,7 @@ class chat:
 		self.main.msg.send.function = lambda e: self.main.msg.send.invoke()
 
 		
+		self.main.protocol('WM_DELETE_WINDOW', self.destroy)
 
 		
 
@@ -330,11 +359,11 @@ class chat:
 		
 
 		self.received = self.download = self.download_data = False
-		while not self.received: 
+		while self.active and not self.received: 
 			time.sleep(0.5)
 			print('Waiting for response')
 			self.connection.sendall(finish) # envia pacotes de finalização 	
-			time.sleep(0.1)
+			time.sleep(0.5)
 
 		
 			
@@ -508,6 +537,8 @@ class chat:
 
 			
 	def destroy (self):
+		print('Closing window')
+		self.connection.close(self.address)
 		self.active = False
 		self.main.destroy()
 
