@@ -188,7 +188,7 @@ class main:
 	def __init__ (self):
 		self.main = tkinter.Tk()
 		self.active = True
-		self.main.title(protocol.__name__.upper() + ' chat (Speed test)') # mudando o título da janela principal 
+		self.main.title(protocol.__name__.upper() + ' Speed test') # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
@@ -301,8 +301,7 @@ class chat:
 		
 
 		self.files = {}
-		self.sending_files = {}
-		self.sending = []
+		
 		
 		
 		self.connection = c
@@ -313,7 +312,7 @@ class chat:
 		self.last = {2:None}
 
 		self.main.bind('<Return>', self.main.msg.send.function)
-		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
+		self.main.title(protocol.__name__.upper() + ' ' + l + ' ' + str(a)) # mudando o título da conversa
 
 		
 		self.received = self.download = False
@@ -322,16 +321,22 @@ class chat:
 		self.download_data = 0
 		self.upload_data = -3
 
+		self.errors = 0
+
 		self.sent = self.download_time = self.download_size = 0
 		
+		self.test = -4
+
 		
 		print('Chatting with',self.address,'(Speed test)')
+
 		
 
 	def send (self):	
 		
 		
-		self.download = self.download_data = False
+		
+		
 
 		# iniciar teste 
 		threading.Thread(target=self.send_test).start()
@@ -339,9 +344,23 @@ class chat:
 		
 
 	def send_test (self, remaining_tests = TEST_TURNS, ask_data = True):
-		print('Sending....')
+		
+		self.test = remaining_tests
 		self.main.msg.send.config(state=tkinter.DISABLED)
 		self.main.bind('<Return>', print)
+		
+		
+		begin = self.package(b'\r\0',b'\x7f\0',b'\x7f\0')
+
+		d = self.received = False
+		while self.active and not self.received: 
+			time.sleep(0.5)
+			print('Waiting confirmation\t',d)
+			self.connection.sendall(begin) # envia pacotes de início 	
+			d += 1
+			time.sleep(1)
+
+		print('Sending....')	
 		
 		ti = time.time()
 		tf = ti + TEST_TIME * (remaining_tests > 0)
@@ -355,20 +374,22 @@ class chat:
 			self.connection.sendall(ck)
 
 		finish = self.package(self.encode_in_bytes(c), self.encode_in_bytes(remaining_tests), self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + (b'\x7f\0\x7f\0' if ask_data else (self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download))))
-		print([remaining_tests], c, ' packages sent')	
+		print([remaining_tests], c, 'packages sent')	
 		
 
-		self.received = self.download = self.download_data = False
+		d = self.received = False
 		while self.active and not self.received: 
-			time.sleep(0.5)
-			print('Waiting for response')
+			time.sleep(1)
+			print('Waiting for response\t',d)
 			self.connection.sendall(finish) # envia pacotes de finalização 	
-			time.sleep(0.5)
+			d += 1
+			time.sleep(1.5)
 
 		
 			
 
-		self.sent = c
+		if c:
+			self.sent = c
 
 		if remaining_tests <= 1:
 			
@@ -378,7 +399,8 @@ class chat:
 			if remaining_tests < 1:
 
 				print('Closing\t',self.download,self.download_data)	
-				self.download = self.download_data = False
+				
+			self.test = -4
 			
 		print('Responded')	
 			
@@ -416,13 +438,19 @@ class chat:
 			
 	def convert_size (self, v, k_div = 1024, k_if = 1000):
 
-		k = 0
+		s = k = 0
+		if v < 0:
+			s = True
+			v = -v
 		while v > k_if:
 			v /= k_div			
 			k += 1
 
 		if type(v) == float and v.is_integer():	
 			v = int(v)
+
+		if s:
+			v = -v	
 
 		return v, k	
 				
@@ -462,18 +490,33 @@ class chat:
 			
 		else:		
 			# número do pacote, número do teste, índices inicial e final de leitura do texto, lista de valores
-			print('ERROR\t',n,t,r,i,f,v) 
+			print('ERROR\t',m,n,t,r,'\t',[i,f],v,'\t',self.download, self.errors) 
+			self.errors += 1
 			return 
 
 		self.received = True	
+	#	print((i,f),v,'\t',m,n,t,r)
 
 		if t > 0: 
+			if self.test < t and self.test >= 0:
+				print('Repeated confirmation')
+				return
 			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
 		elif r > 0 or r == -1:	
-			if t != -2:
-				self.connection.sendall(self.package(b'\x80\0', b'~\0'))#, b'\x7f\0'
+			if t == -2:
+				return
+
+			self.connection.sendall(self.package(b'\x80\0', b'~\0', b'\x7f\0'))
+			if t == -1:# and n == -115:
+				print('Beginning....')
+				self.download = self.download_data = self.errors = False
+				self.test = -4
+				self.main.msg.send.config(state=tkinter.DISABLED)
+				self.main.bind('<Return>', print)
+				return 
+				
 			print('Ending\t',self.download,self.download_data)	
-			self.download = self.download_data = False	
+			
 		else:		
 			self.download += 1		 
 			self.download_data += len(msg)
@@ -495,18 +538,20 @@ class chat:
 			
 		data_sent = self.download_size * n	
 		data_size, data_scale = self.convert_size(data_sent)
+		lost_size, lost_scale = self.convert_size(data_sent - self.download_data)
 		download_size, download_scale = self.convert_size(self.download_data)
 		download_speed, download_prefix = self.convert_size(self.download_data * 8 / self.download_time) if self.download_time > 0 else (-1, 0)
 		upload_speed, upload_prefix = self.convert_size(self.upload_data * 8 / TEST_TIME) if TEST_TIME > 0 else (-1, 0)
 		upload_size, upload_scale = self.convert_size(self.upload_data)
 
-		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
+		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
 
 		data_sent = self.sent * SIZE
 		data_size, data_scale = self.convert_size(data_sent)
-		q = f'\nUpload {numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
+		lost_size, lost_scale = self.convert_size(data_sent - self.upload_data)
+		q = f'\nUpload {numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tLost {numf(self.sent - self.upload)} packages ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
 		
-		print(q,p)
+		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'s\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'s')
 
 		paragraph = tkinter.Frame(self.main.chat)
 		t = time.localtime()[:5]
