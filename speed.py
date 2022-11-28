@@ -150,7 +150,7 @@ class udp (socket_interface):
 protocol = tcp#udp
 TEST_TEXT = 'teste de rede *2022*'
 TEST_TIME = 20 
-TEST_TURNS = 4
+TEST_TURNS = 2
 SIZE = 500
 
 MSG_TEXT = (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()
@@ -287,7 +287,7 @@ class chat:
 		self.main.title(l + ' ' + str(a)) # mudando o título da conversa
 
 		
-		self.download = False
+		self.received = self.download = False
 		self.upload = -2
 
 		self.download_data = 0
@@ -302,8 +302,7 @@ class chat:
 	def send (self):	
 		
 		
-		pacote = TEST_TEXT * (SIZE // len(TEST_TEXT))
-		pacote += '\0' * (SIZE - len(pacote))
+		self.download = self.download_data = False
 
 		# iniciar teste 
 		threading.Thread(target=self.send_test).start()
@@ -318,39 +317,49 @@ class chat:
 		ti = time.time()
 		tf = ti + TEST_TIME * (remaining_tests > 0)
 		c = 0
+		ck = self.package()
 
 		while time.time() <= tf:
 			
 			c += 1 	
 
-			self.connection.sendall(self.package(c))
+			self.connection.sendall(ck)
 
-		finish = self.package(c, self.encode_in_bytes(remaining_tests), self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + (b'\x7f\0\x7f\0' if ask_data else (self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download))))
+		finish = self.package(self.encode_in_bytes(c), self.encode_in_bytes(remaining_tests), self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + (b'\x7f\0\x7f\0' if ask_data else (self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download))))
 		print([remaining_tests], c, ' packages sent')	
 		
 
-		self.download = self.download_data = 0
-		while self.download <= 0: 
-			time.sleep(0.2)
+		self.received = self.download = self.download_data = False
+		while not self.received: 
+			time.sleep(0.5)
 			print('Waiting for response')
 			self.connection.sendall(finish) # envia pacotes de finalização 	
 			time.sleep(0.1)
 
 		
 			
-		self.main.msg.send.config(state=tkinter.ACTIVE)	
-		self.main.bind('<Return>', self.main.msg.send.function)	
-			
 
+		self.sent = c
+
+		if remaining_tests <= 1:
+			
+			self.main.msg.send.config(state=tkinter.ACTIVE)	
+			self.main.bind('<Return>', self.main.msg.send.function)	
+
+			if remaining_tests < 1:
+
+				print('Closing\t',self.download,self.download_data)	
+				self.download = self.download_data = False
+			
 		print('Responded')	
 			
 
 				
-	def package (self, number = 0, test_number = b'', r = b''):			
+	def package (self, number = b'\0', test_number = b'', r = b''):			
 
 		 
 
-		header = r + test_number + self.encode_in_bytes(number) + b'\0'
+		header = r + test_number + number + b'\0'
 
 		
 
@@ -425,18 +434,24 @@ class chat:
 		else:		
 			# número do pacote, número do teste, índices inicial e final de leitura do texto, lista de valores
 			print('ERROR\t',n,t,r,i,f,v) 
+			return 
+
+		self.received = True	
 
 		if t > 0: 
 			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
-		elif (r > 0 or r == -1) and t != -2:	
-			self.connection.sendall(self.package(0, b'~\0'))
+		elif r > 0 or r == -1:	
+			if t != -2:
+				self.connection.sendall(self.package(b'\x80\0', b'~\0'))#, b'\x7f\0'
+			print('Ending\t',self.download,self.download_data)	
+			self.download = self.download_data = False	
 		else:		
 			self.download += 1		 
 			self.download_data += len(msg)
 			return
 
 		print('FINISH\t', n, t, r, v)
-		self.sent = n
+		
 		self.upload = r
 		if len(v):
 			self.download_time = v[0]
@@ -444,17 +459,24 @@ class chat:
 				self.download_size = v[1]
 				if len(v) > 2:
 					self.upload_data = v[2]
+					
 				
 			
 			
 			
-		data_sent = self.download_size * self.sent	
+		data_sent = self.download_size * n	
 		data_size, data_scale = self.convert_size(data_sent)
 		download_size, download_scale = self.convert_size(self.download_data)
-		download_speed, download_prefix = self.convert_size(self.download_data * 8 / (self.download_time if self.download_time > 0 else 1))
+		download_speed, download_prefix = self.convert_size(self.download_data * 8 / self.download_time) if self.download_time > 0 else (-1, 0)
+		upload_speed, upload_prefix = self.convert_size(self.upload_data * 8 / TEST_TIME) if TEST_TIME > 0 else (-1, 0)
+		upload_size, upload_scale = self.convert_size(self.upload_data)
 
 		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
-		q = f'\nUpload {numf(t + 1)}:\n\tReceived {numf(self.upload_data)} Bytes' if r > 0 else 'Beginning'
+
+		data_sent = self.sent * SIZE
+		data_size, data_scale = self.convert_size(data_sent)
+		q = f'\nUpload {numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
+		
 		print(q,p)
 
 		paragraph = tkinter.Frame(self.main.chat)
@@ -467,11 +489,11 @@ class chat:
 
 		ln = tkinter.Frame(paragraph)
 		ln.pack(fill=tkinter.X)
-		tkinter.Label(ln, text=p).pack(side=tkinter.RIGHT)	
+		tkinter.Label(ln, text=q).pack(side=tkinter.RIGHT)	
 
 		ln = tkinter.Frame(paragraph)
 		ln.pack(fill=tkinter.X)
-		tkinter.Label(ln, text=q).pack(side=tkinter.LEFT)	
+		tkinter.Label(ln, text=p).pack(side=tkinter.LEFT)	
 
 		paragraph.pack(fill=tkinter.X) 
 			
