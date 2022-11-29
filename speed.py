@@ -324,7 +324,7 @@ class chat:
 
 		self.main.screen = tkinter.Frame(self.main.window)
 		self.main.screen.pack(fill=tkinter.BOTH, expand=True)
-		self.main.window.create_window((0, 0), window=self.main.screen, anchor=tkinter.NW)
+		self.main.window.frame = self.main.window.create_window((0, 0), window=self.main.screen, anchor=tkinter.NW)
 		
 		self.main.chat = tkinter.Frame(self.main.screen)
 		self.main.chat.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
@@ -378,8 +378,11 @@ class chat:
 		
 	def update_window (self, event = None):	
 
+		if event != None:
+			self.main.window.itemconfig(self.main.window.frame, width = event.width)	
 		self.main.window.update()
 		self.main.window.configure(scrollregion=self.main.window.bbox(tkinter.ALL))
+
 
 	def delete (self):
 
