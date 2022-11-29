@@ -137,9 +137,8 @@ class udp (socket_interface):
 	def connect (self, address):
 		
 		connection = udp(connection = self.socket)
-		#connection.address = self.address
-		connection.dest_address(address)
 		
+		connection.dest_address(address)
 		connection.parent = self 
 		
 		self.connections[address] = connection
@@ -182,6 +181,8 @@ TEST_TEXT = 'teste de rede *2022*'
 TEST_TIME = 20 * 1000
 TEST_TURNS = 2
 SIZE = 500
+
+TEST_ID = False 
 
 #MSG_TEXT = (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()
 
@@ -302,7 +303,8 @@ class chat:
 
 		
 
-		self.files = {}
+		self.n = TEST_ID
+		
 		
 		
 		
@@ -338,6 +340,7 @@ class chat:
 		
 		
 		
+		self.n += 1
 		
 
 		# iniciar teste 
@@ -352,7 +355,7 @@ class chat:
 		self.main.bind('<Return>', print)
 		
 		
-		begin = self.package(b'\r\0',b'\x7f\0',b'\x7f\0')
+		begin = self.package(self.encode_in_bytes(self.n),b'\x7f\0',b'\x7f\0')
 
 		d = self.received = False
 		while self.active and not self.received: 
@@ -505,19 +508,29 @@ class chat:
 				return
 			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
 		elif r > 0 or r == -1:	
-			if t == -2:
+			
+			if self.n < n and t < 0 and t >= -2:
+				print(self.n, '<', n)
+				self.n = n
+
+			if t == -2: # recebimento da confirmação 
 				return
 
-			self.connection.sendall(self.package(b'\x80\0', b'~\0', b'\x7f\0'))
-			if t == -1:# and n == -115:
+			self.connection.sendall(self.package(self.encode_in_bytes(self.n), b'~\0', b'\x7f\0'))
+			if t == -1:
 				print('Beginning....')
 				self.download = self.download_data = self.errors = False
 				self.test = -4
 				self.main.msg.send.config(state=tkinter.DISABLED)
 				self.main.bind('<Return>', print)
+
+				
+				
 				return 
 				
 			print('Ending\t',self.download,self.download_data)	
+			
+			
 			
 		else:		
 			self.download += 1		 
@@ -541,6 +554,7 @@ class chat:
 				
 			
 			
+		
 			
 		data_sent = self.download_size * n	
 		data_size, data_scale = self.convert_size(data_sent)
@@ -550,12 +564,16 @@ class chat:
 		upload_speed, upload_prefix = self.convert_size(self.upload_data * 8000 / TEST_TIME) if TEST_TIME > 0 else (-1, 0)
 		upload_size, upload_scale = self.convert_size(self.upload_data)
 
-		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
+		# 
+		p = f'\nDownload {numf(self.n)}.{numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
+
+			
 
 		data_sent = self.sent * SIZE
 		data_size, data_scale = self.convert_size(data_sent)
 		lost_size, lost_scale = self.convert_size(data_sent - self.upload_data)
-		q = f'\nUpload {numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
+		# 
+		q = f'\nUpload {numf(self.n)}.{numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
 		
 		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'ms\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'ms')
 
@@ -615,6 +633,8 @@ if __name__ == '__main__':
 			SIZE = int(v)
 		elif k == 'protocol':
 			protocol = {'tcp': tcp, 'udp': udp}[v.lower()]
+		elif k == 'test':	
+			TEST_ID = int(v)
 		else:	
 			k = v.lower()#.replace('-','').replace('_','')
 			continue
