@@ -1,6 +1,6 @@
 
 print(end='\n.') # o primeiro ponto avisa que o programa abriu e está carregando
-from audioop import add
+
 import socket # Internet Socket API 
 
 print(end='.') # o segundo ponto avisa a abertura da segunda dependência
@@ -8,6 +8,7 @@ import threading
 import tkinter 
 import time
 import math
+
 
 import locale
 locale.setlocale(locale.LC_ALL, 'pt_BR.UTF-8')
@@ -18,7 +19,8 @@ SEP = '\t'
 
 SCALE_PREFIX = '', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'
 
-numf = lambda x: locale.format_string('%d' if type(x) == int else '%.3f', x, grouping=True)
+
+numf = lambda x: locale.format_string('%.3f' if type(x) == float and not x.is_integer() else '%d', x, grouping=True)
 
 class socket_interface:
 
@@ -175,19 +177,19 @@ class udp (socket_interface):
 			self.connections[address].msg_callback(msg)	
 
 
-protocol = udp
+protocol = tcp
 TEST_TEXT = 'teste de rede *2022*'
-TEST_TIME = 20 
+TEST_TIME = 20 * 1000
 TEST_TURNS = 2
 SIZE = 500
 
-MSG_TEXT = (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()
+#MSG_TEXT = (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()
 
 class main:
 
 	def __init__ (self):
 		self.main = tkinter.Tk()
-		self.active = True
+		
 		self.main.title(protocol.__name__.upper() + ' Speed test') # mudando o título da janela principal 
 
 	def start (self):	
@@ -339,11 +341,11 @@ class chat:
 		
 
 		# iniciar teste 
-		threading.Thread(target=self.send_test).start()
+		threading.Thread(target=self.send_test, args=[TEST_TURNS]).start()
 
 		
 
-	def send_test (self, remaining_tests = TEST_TURNS, ask_data = True):
+	def send_test (self, remaining_tests, ask_data = True):
 		
 		self.test = remaining_tests
 		self.main.msg.send.config(state=tkinter.DISABLED)
@@ -363,7 +365,7 @@ class chat:
 		print('Sending....')	
 		
 		ti = time.time()
-		tf = ti + TEST_TIME * (remaining_tests > 0)
+		tf = ti + ((remaining_tests > 0) * TEST_TIME / 1000)
 		c = 0
 		ck = self.package()
 
@@ -373,7 +375,7 @@ class chat:
 
 			self.connection.sendall(ck)
 
-		finish = self.package(self.encode_in_bytes(c), self.encode_in_bytes(remaining_tests), self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + (b'\x7f\0\x7f\0' if ask_data else (self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.download))))
+		finish = self.package(self.encode_in_bytes(c), self.encode_in_bytes(remaining_tests), self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + (b'\x7f\0\x7f\0\x7f\0' if ask_data else (self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.errors) + self.encode_in_bytes(self.download))))
 		print([remaining_tests], c, 'packages sent')	
 		
 
@@ -414,7 +416,7 @@ class chat:
 
 		
 
-		return header + MSG_TEXT[:SIZE - len(header)]
+		return header + (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()[:SIZE - len(header)] # MSG_TEXT
 
 
 
@@ -525,12 +527,16 @@ class chat:
 		print('FINISH\t', n, t, r, v)
 		
 		self.upload = r
+		self.upload_error = -1
 		if len(v):
 			self.download_time = v[0]
 			if len(v) > 1:
 				self.download_size = v[1]
 				if len(v) > 2:
 					self.upload_data = v[2]
+					if len(v) > 3:
+						self.upload_error = v[3]
+						
 					
 				
 			
@@ -540,18 +546,18 @@ class chat:
 		data_size, data_scale = self.convert_size(data_sent)
 		lost_size, lost_scale = self.convert_size(data_sent - self.download_data)
 		download_size, download_scale = self.convert_size(self.download_data)
-		download_speed, download_prefix = self.convert_size(self.download_data * 8 / self.download_time) if self.download_time > 0 else (-1, 0)
-		upload_speed, upload_prefix = self.convert_size(self.upload_data * 8 / TEST_TIME) if TEST_TIME > 0 else (-1, 0)
+		download_speed, download_prefix = self.convert_size(self.download_data * 8000 / self.download_time) if self.download_time > 0 else (-1, 0)
+		upload_speed, upload_prefix = self.convert_size(self.upload_data * 8000 / TEST_TIME) if TEST_TIME > 0 else (-1, 0)
 		upload_size, upload_scale = self.convert_size(self.upload_data)
 
-		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
+		p = f'\nDownload {numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
 
 		data_sent = self.sent * SIZE
 		data_size, data_scale = self.convert_size(data_sent)
 		lost_size, lost_scale = self.convert_size(data_sent - self.upload_data)
-		q = f'\nUpload {numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\tLost {numf(self.sent - self.upload)} packages ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
+		q = f'\nUpload {numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
 		
-		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'s\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'s')
+		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'ms\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'ms')
 
 		paragraph = tkinter.Frame(self.main.chat)
 		t = time.localtime()[:5]
@@ -591,6 +597,33 @@ print('.')
 # ponto final avisa o fim das definições
 
 if __name__ == '__main__':		
+	import os
+	print(os.system('ipconfig'))
+	k = ' '
+	for v in os.sys.argv:
+		if k == 'sep':
+			SEP = v
+		elif k == 'log':
+			LOG = v
+		elif k == 'time':	
+			TEST_TIME = math.floor(float(v) * 1000)
+		elif k == 'turns':	
+			TEST_TURNS = int(v)
+		elif k == 'text':	
+			TEST_TEXT = v
+		elif k == 'size':	
+			SIZE = int(v)
+		elif k == 'protocol':
+			protocol = {'tcp': tcp, 'udp': udp}[v.lower()]
+		else:	
+			k = v.lower()#.replace('-','').replace('_','')
+			continue
+
+		print(k,'\t',v)		
+		k = ''
+
+		
+
 	main().start()	
 
 
