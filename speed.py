@@ -21,6 +21,7 @@ SCALE_PREFIX = '', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'
 
 
 numf = lambda x: locale.format_string('%.3f' if type(x) == float and not x.is_integer() else '%d', x, grouping=True)
+active = True
 
 class socket_interface:
 
@@ -102,8 +103,9 @@ class tcp (socket_interface):
 		self.socket.sendall(data)
 
 	def listen (self):	
+		global active
 
-		while True:
+		while active:
 
 			self.socket.listen()
 			connection, address = self.socket.accept()
@@ -115,13 +117,17 @@ class tcp (socket_interface):
 			
 			self.conn_callback(connection, address)
 
-	def mainloop (self):		
+		print('Closing TCP listening loop')	
 
-		while True:
+	def mainloop (self):		
+		global active
+
+		while active:
 
 				
 			self.msg_callback(self.socket.recv(SIZE))
 
+		print('Closing TCP recv mainloop')	
 
 	
 
@@ -153,8 +159,9 @@ class udp (socket_interface):
 			c += self.socket.sendto(data[c:], self.dest)	
 
 	def listen (self):	
+		global active
 
-		while True:
+		while active:
 
 			try:
 				msg, address = self.socket.recvfrom(SIZE)
@@ -175,6 +182,8 @@ class udp (socket_interface):
 
 			self.connections[address].msg_callback(msg)	
 
+		print('Closing UDP listening loop')	
+
 
 protocol = tcp
 TEST_TEXT = 'teste de rede *2022*'
@@ -184,6 +193,7 @@ SIZE = 500
 
 TEST_ID = False 
 
+
 #MSG_TEXT = (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()
 
 class main:
@@ -191,6 +201,7 @@ class main:
 	def __init__ (self):
 		self.main = tkinter.Tk()
 		
+		self.main.protocol('WM_DELETE_WINDOW', self.destroy)
 		self.main.title(protocol.__name__.upper() + ' Speed test') # mudando o título da janela principal 
 
 	def start (self):	
@@ -249,7 +260,7 @@ class main:
 
 			self.socket = protocol(self.address)
 			self.socket.connection_callback(self.connect)
-			threading.Thread(target=self.socket.listen).start()
+			threading.Thread(target=self.socket.listen, daemon=True).start()
 			
 
 			with open(LOG,'w') as log:
@@ -278,27 +289,57 @@ class main:
 		except ValueError:
 			print('Invalid integer client port')	
 
+	def destroy (self):	
+		print('Closing main window')
 		
+		global active
+		active = False
+
+		self.main.destroy()
+
+		print(active)
+		exit(0)
 
 	def mainloop (self):	
 		self.start()
 
+
+
 class chat:
 
 	def __init__ (self, m, c, a, l = ''):		
+		
 
 		self.main = tkinter.Toplevel(m)
-		self.main.chat = tkinter.Frame(self.main)
-		self.main.chat.pack(fill=tkinter.BOTH)
+		self.main.scrollable = self.main.screen = tkinter.Frame(self.main)
+		self.main.scrollable.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+		self.main.window = tkinter.Canvas(self.main.scrollable)
+		self.main.window.bar = tkinter.Scrollbar(self.main.scrollable, command=self.main.window.yview)
+		self.main.window.bar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+		self.main.window.pack(fill=tkinter.BOTH, expand=True)
+		self.main.window.config(yscrollcommand=self.main.window.bar.set)
+		
+		self.main.window.bind('<Configure>', self.update_window)
+		
+
+		self.main.screen = tkinter.Frame(self.main.window)
+		self.main.screen.pack(fill=tkinter.BOTH, expand=True)
+		self.main.window.create_window((0, 0), window=self.main.screen, anchor=tkinter.NW)
+		
+		self.main.chat = tkinter.Frame(self.main.screen)
+		self.main.chat.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
 		
 		self.main.msg = tkinter.Frame(self.main)
-		self.main.msg.pack(side=tkinter.BOTTOM, fill=tkinter.X)
+		self.main.msg.pack(fill=tkinter.X)
 
-		self.main.msg.send = tkinter.Button(self.main.msg, text='Run', command=self.send)
-		self.main.msg.send.pack(side=tkinter.RIGHT, fill=tkinter.X)
+		self.main.msg.send = tkinter.Button(self.main.msg, text='Run!', command=self.send)
+		self.main.msg.send.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True)
 		self.main.msg.send.function = lambda e: self.main.msg.send.invoke()
 
 		
+		self.main.msg.delete = tkinter.Button(self.main.msg, text='Remove results', command=self.delete)
+		self.main.msg.delete.pack(side=tkinter.RIGHT)
+
 		self.main.protocol('WM_DELETE_WINDOW', self.destroy)
 
 		
@@ -310,7 +351,7 @@ class chat:
 		
 		self.connection = c
 		self.connection.message_callback(self.mainloop)
-		threading.Thread(target=self.connection.mainloop).start()
+		threading.Thread(target=self.connection.mainloop, daemon=True).start()
 		self.address = a
 		self.active = True
 		self.last = {2:None}
@@ -335,6 +376,21 @@ class chat:
 		print('Chatting with',self.address,'(Speed test)')
 
 		
+	def update_window (self, event = None):	
+
+		self.main.window.update()
+		self.main.window.configure(scrollregion=self.main.window.bbox(tkinter.ALL))
+
+	def delete (self):
+
+		self.main.chat.destroy()
+		self.main.chat = tkinter.Frame(self.main.screen)
+		self.main.chat.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
+
+		self.update_window()
+
+		self.last = {2:None}
+
 
 	def send (self):	
 		
@@ -344,7 +400,7 @@ class chat:
 		
 
 		# iniciar teste 
-		threading.Thread(target=self.send_test, args=[TEST_TURNS]).start()
+		threading.Thread(target=self.send_test, args=[TEST_TURNS], daemon=True).start()
 
 		
 
@@ -506,7 +562,7 @@ class chat:
 			if self.test < t and self.test >= 0:
 				print('Repeated confirmation')
 				return
-			threading.Thread(target=self.send_test, args=(t - 1, False)).start()
+			threading.Thread(target=self.send_test, args=(t - 1, False), daemon=True).start()
 		elif r > 0 or r == -1:	
 			
 			if self.n < n and t < 0 and t >= -2:
@@ -596,6 +652,8 @@ class chat:
 		paragraph.pack(fill=tkinter.X) 
 			
 
+		self.main.window.yview_moveto(0)
+		self.update_window()
 		
 				
 						
