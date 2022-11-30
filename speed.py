@@ -319,12 +319,13 @@ class chat:
 		self.main.window.pack(fill=tkinter.BOTH, expand=True)
 		self.main.window.config(yscrollcommand=self.main.window.bar.set)
 		
-		self.main.window.bind('<Configure>', self.update_window)
+		
 		
 
 		self.main.screen = tkinter.Frame(self.main.window)
 		self.main.screen.pack(fill=tkinter.BOTH, expand=True)
 		self.main.window.frame = self.main.window.create_window((0, 0), window=self.main.screen, anchor=tkinter.NW)
+		self.main.window.bind('<Configure>', self.update_window)
 		
 		self.main.chat = tkinter.Frame(self.main.screen)
 		self.main.chat.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
@@ -372,6 +373,8 @@ class chat:
 		
 		self.test = -4
 
+		self.turns = TEST_TURNS
+
 		
 		print('Chatting with',self.address,'(Speed test)')
 
@@ -401,6 +404,7 @@ class chat:
 		
 		self.n += 1
 		
+		self.turns = TEST_TURNS
 
 		# iniciar teste 
 		threading.Thread(target=self.send_test, args=[TEST_TURNS], daemon=True).start()
@@ -414,7 +418,8 @@ class chat:
 		self.main.bind('<Return>', print)
 		
 		
-		begin = self.package(self.encode_in_bytes(self.n),b'\x7f\0',b'\x7f\0')
+		
+		begin = self.package(self.encode_in_bytes(self.n), b'\x7f\0', self.encode_in_bytes(self.turns) + b'\x7f\0')
 
 		d = self.received = False
 		while self.active and not self.received: 
@@ -577,9 +582,10 @@ class chat:
 
 			self.connection.sendall(self.package(self.encode_in_bytes(self.n), b'~\0', b'\x7f\0'))
 			if t == -1:
-				print('Beginning....')
+				print('Beginning....', v[:1])
 				self.download = self.download_data = self.errors = False
 				self.test = -4
+				self.turns = v[0]
 				self.main.msg.send.config(state=tkinter.DISABLED)
 				self.main.bind('<Return>', print)
 
@@ -624,7 +630,7 @@ class chat:
 		upload_size, upload_scale = self.convert_size(self.upload_data)
 
 		# 
-		p = f'\nDownload {numf(self.n)}.{numf(t)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
+		p = f'\nDownload {numf(self.n)}.{numf(self.turns - t + 1)}:\n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
 
 			
 
@@ -632,7 +638,7 @@ class chat:
 		data_size, data_scale = self.convert_size(data_sent)
 		lost_size, lost_scale = self.convert_size(data_sent - self.upload_data)
 		# 
-		q = f'\nUpload {numf(self.n)}.{numf(t + 1)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
+		q = f'\nUpload {numf(self.n)}.{numf(self.turns - t)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
 		
 		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'ms\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'ms')
 
