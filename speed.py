@@ -198,11 +198,18 @@ TEST_ID = False
 
 class main:
 
-	def __init__ (self):
-		self.main = tkinter.Tk()
+	def __init__ (self, root = None):
+		self.is_root = (root == None)
 		
-		self.main.protocol('WM_DELETE_WINDOW', self.destroy)
-		self.main.title(protocol.__name__.upper() + ' Speed test') # mudando o título da janela principal 
+		if self.is_root:
+			self.main = tkinter.Tk()
+			self.main.protocol('WM_DELETE_WINDOW', self.destroy)
+		else:	
+			if type(root) == main:
+				root = root.main
+			self.main = tkinter.Toplevel(root)
+			
+		self.main.title(protocol.__name__.upper() + ' Speed test' + (' (main)' * self.is_root)) # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
@@ -239,7 +246,8 @@ class main:
 			pass
 
 		self.main.bind('<Return>', lambda e: self.main.address.start.invoke())
-		self.main.mainloop()
+		if self.is_root:
+			self.main.mainloop()
 
 	def server (self):
 
@@ -534,7 +542,7 @@ class chat:
 			
 	
 
-	def mainloop (self, msg):	
+	def mainloop (self, msg, start = print):	
 
 		m = n = i = f = t = r = False
 		v = []
@@ -570,7 +578,7 @@ class chat:
 			if self.test < t and self.test >= 0:
 				print('Repeated confirmation')
 				return
-			threading.Thread(target=self.send_test, args=(t - 1, False), daemon=True).start()
+			start = threading.Thread(target=self.send_test, args=(t - 1, False), daemon=True).start
 		elif r > 0 or r == -1:	
 			
 			if self.n < n and t < 0 and t >= -2:
@@ -605,15 +613,15 @@ class chat:
 		print('FINISH\t', n, t, r, v)
 		
 		self.upload = r
-		self.upload_error = -1
-		if len(v):
-			self.download_time = v[0]
-			if len(v) > 1:
-				self.download_size = v[1]
-				if len(v) > 2:
-					self.upload_data = v[2]
-					if len(v) > 3:
-						self.upload_error = v[3]
+		
+		
+		self.download_time = v[0] if len(v) else 0
+			
+		self.download_size = v[1] if len(v) > 1 else 0
+				
+		self.upload_data = v[2] if len(v) > 2 else 0
+					
+		self.upload_error = v[3] if len(v) > 3 else -1
 						
 					
 				
@@ -640,6 +648,7 @@ class chat:
 		# 
 		q = f'\nUpload {numf(self.n)}.{numf(self.turns - t)}:\n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B)\n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B)\n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)\n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
 		
+		start() # inicia a nova chamada, se houver 
 		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'ms\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'ms')
 
 		paragraph = tkinter.Frame(self.main.chat)
@@ -683,8 +692,11 @@ print('.')
 
 if __name__ == '__main__':		
 	import os
-	print(os.system('ipconfig'))
+	if os.system('ip address show'):
+		if os.system('ipconfig'):
+			print('IP command unknown')
 	k = ' '
+	n = True
 	for v in os.sys.argv:
 		if k == 'sep':
 			SEP = v
@@ -698,11 +710,16 @@ if __name__ == '__main__':
 			TEST_TEXT = v
 		elif k == 'size':	
 			SIZE = int(v)
-		elif k == 'protocol':
-			protocol = {'tcp': tcp, 'udp': udp}[v.lower()]
 		elif k == 'test':	
 			TEST_ID = int(v)
+		elif k == 'windows':	
+			n = int(v)
 		else:	
+			if k == 'udp':	
+				protocol = udp
+			elif k == 'tcp':
+				protocol = tcp
+
 			k = v.lower()#.replace('-','').replace('_','')
 			continue
 
@@ -710,8 +727,12 @@ if __name__ == '__main__':
 		k = ''
 
 		
+	m = main()
 
-	main().start()	
+	for c in range(n - 1):	
+		main(m).start()
+
+	m.start()	
 
 
 
