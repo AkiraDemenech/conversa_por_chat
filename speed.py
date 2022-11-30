@@ -71,7 +71,6 @@ class socket_interface:
 		
 		return
 
-
 		
 
 	def mainloop (self):		
@@ -200,7 +199,6 @@ class main:
 
 	def __init__ (self, root = None):
 		self.is_root = (root == None)
-		
 		if self.is_root:
 			self.main = tkinter.Tk()
 			self.main.protocol('WM_DELETE_WINDOW', self.destroy)
@@ -208,7 +206,6 @@ class main:
 			if type(root) == main:
 				root = root.main
 			self.main = tkinter.Toplevel(root)
-			
 		self.main.title(protocol.__name__.upper() + ' Speed test' + (' (main)' * self.is_root)) # mudando o título da janela principal 
 
 	def start (self):	
@@ -345,7 +342,6 @@ class chat:
 		self.main.msg.send.pack(side=tkinter.LEFT, fill=tkinter.X, expand=True)
 		self.main.msg.send.function = lambda e: self.main.msg.send.invoke()
 
-		
 		self.main.msg.delete = tkinter.Button(self.main.msg, text='Remove results', command=self.delete)
 		self.main.msg.delete.pack(side=tkinter.RIGHT)
 
@@ -378,7 +374,6 @@ class chat:
 		self.errors = 0
 
 		self.sent = self.download_time = self.download_size = 0
-		
 		self.test = -4
 
 		self.turns = TEST_TURNS
@@ -386,7 +381,6 @@ class chat:
 		
 		print('Chatting with',self.address,'(Speed test)')
 
-		
 	def update_window (self, event = None):	
 
 		if event != None:
@@ -407,7 +401,6 @@ class chat:
 
 
 	def send (self):	
-		
 		
 		
 		self.n += 1
@@ -461,9 +454,6 @@ class chat:
 			self.connection.sendall(finish) # envia pacotes de finalização 	
 			d += 1
 			time.sleep(1.5)
-
-		
-			
 
 		if c:
 			self.sent = c
@@ -613,19 +603,13 @@ class chat:
 		print('FINISH\t', n, t, r, v)
 		
 		self.upload = r
-		
-		
 		self.download_time = v[0] if len(v) else 0
-			
 		self.download_size = v[1] if len(v) > 1 else 0
-				
 		self.upload_data = v[2] if len(v) > 2 else 0
-					
 		self.upload_error = v[3] if len(v) > 3 else -1
 						
 					
 				
-			
 			
 		
 			
@@ -669,7 +653,6 @@ class chat:
 
 		paragraph.pack(fill=tkinter.X) 
 			
-
 		self.main.window.yview_moveto(0)
 		self.update_window()
 		
@@ -719,7 +702,6 @@ if __name__ == '__main__':
 				protocol = udp
 			elif k == 'tcp':
 				protocol = tcp
-
 			k = v.lower()#.replace('-','').replace('_','')
 			continue
 
@@ -728,7 +710,6 @@ if __name__ == '__main__':
 
 		
 	m = main()
-
 	for c in range(n - 1):	
 		main(m).start()
 
