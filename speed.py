@@ -68,20 +68,12 @@ class socket_interface:
 		self.socket.bind(self.address)
 
 	def listen (self):	
-		
 		return
-
-		
-
 	def mainloop (self):		
-		
 		return	
 
 	def start (self):	
-
 		self.mainloop()
-
-	 	
 
 class tcp (socket_interface):
 	def __init__ (self, address = None, connection = None):
@@ -112,7 +104,6 @@ class tcp (socket_interface):
 			connection = tcp(connection = connection)
 			connection.dest_address(address)
 			connection.parent = self
-
 			
 			self.conn_callback(connection, address)
 
@@ -122,17 +113,12 @@ class tcp (socket_interface):
 		global active
 
 		while active:
-
 				
 			self.msg_callback(self.socket.recv(SIZE))
 
 		print('Closing TCP recv mainloop')	
 
-	
-
 class udp (socket_interface): 
-	
-
 
 	def __init__ (self, address = None, connection = None):
 		super().connection(connection if connection != None else socket.socket(socket.AF_INET, socket.SOCK_DGRAM))
@@ -173,11 +159,8 @@ class udp (socket_interface):
 				print('Reset connection')	
 				continue
 			if not address in self.connections:
-				
 												
 				self.conn_callback(self.connect(address), address)
-				
-				
 
 			self.connections[address].msg_callback(msg)	
 
@@ -259,9 +242,6 @@ class main:
 			if self.address[1] >> 16:
 				print('Port too long')
 				return 
-			
-			
-
 
 			self.socket = protocol(self.address)
 			self.socket.connection_callback(self.connect)
@@ -313,8 +293,6 @@ class main:
 class chat:
 
 	def __init__ (self, m, c, a, l = ''):		
-		
-
 		self.main = tkinter.Toplevel(m)
 		self.main.scrollable = self.main.screen = tkinter.Frame(self.main)
 		self.main.scrollable.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
@@ -323,9 +301,6 @@ class chat:
 		self.main.window.bar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
 		self.main.window.pack(fill=tkinter.BOTH, expand=True)
 		self.main.window.config(yscrollcommand=self.main.window.bar.set)
-		
-		
-		
 
 		self.main.screen = tkinter.Frame(self.main.window)
 		self.main.screen.pack(fill=tkinter.BOTH, expand=True)
@@ -346,13 +321,7 @@ class chat:
 		self.main.msg.delete.pack(side=tkinter.RIGHT)
 
 		self.main.protocol('WM_DELETE_WINDOW', self.destroy)
-
-		
-
 		self.n = TEST_ID
-		
-		
-		
 		
 		self.connection = c
 		self.connection.message_callback(self.mainloop)
@@ -401,10 +370,7 @@ class chat:
 
 
 	def send (self):	
-		
-		
 		self.n += 1
-		
 		self.turns = TEST_TURNS
 
 		# iniciar teste 
@@ -417,8 +383,6 @@ class chat:
 		self.test = remaining_tests
 		self.main.msg.send.config(state=tkinter.DISABLED)
 		self.main.bind('<Return>', print)
-		
-		
 		
 		begin = self.package(self.encode_in_bytes(self.n), b'\x7f\0', self.encode_in_bytes(self.turns) + b'\x7f\0')
 
@@ -470,20 +434,10 @@ class chat:
 			self.test = -4
 			
 		print('Responded')	
-			
-
 				
 	def package (self, number = b'\0', test_number = b'', r = b''):			
-
-		 
-
 		header = r + test_number + number + b'\0'
-
-		
-
 		return header + (TEST_TEXT * math.ceil(SIZE / len(TEST_TEXT))).encode()[:SIZE - len(header)] # MSG_TEXT
-
-
 
 	def encode_in_bytes (self, n, end=b'\0'):	
 
@@ -498,9 +452,6 @@ class chat:
 		
 		if b:
 			return v.to_bytes(b, 'big') + end
-
-		
-			
 		return b'\x80' + end	
 			
 	def convert_size (self, v, k_div = 1024, k_if = 1000):
@@ -521,16 +472,6 @@ class chat:
 
 		return v, k	
 				
-					
-
-				 
-
-				
-						
-					
-							
-			
-	
 
 	def mainloop (self, msg, start = print):	
 
@@ -586,14 +527,9 @@ class chat:
 				self.turns = v[0]
 				self.main.msg.send.config(state=tkinter.DISABLED)
 				self.main.bind('<Return>', print)
-
-				
-				
 				return 
 				
 			print('Ending\t',self.download,self.download_data)	
-			
-			
 			
 		else:		
 			self.download += 1		 
@@ -607,12 +543,7 @@ class chat:
 		self.download_size = v[1] if len(v) > 1 else 0
 		self.upload_data = v[2] if len(v) > 2 else 0
 		self.upload_error = v[3] if len(v) > 3 else -1
-						
-					
-				
-			
-		
-			
+									
 		data_sent = self.download_size * n	
 		data_size, data_scale = self.convert_size(data_sent)
 		lost_size, lost_scale = self.convert_size(data_sent - self.download_data)
@@ -620,11 +551,8 @@ class chat:
 		download_speed, download_prefix = self.convert_size(self.download_data * 8000 / self.download_time) if self.download_time > 0 else (-1, 0)
 		upload_speed, upload_prefix = self.convert_size(self.upload_data * 8000 / TEST_TIME) if TEST_TIME > 0 else (-1, 0)
 		upload_size, upload_scale = self.convert_size(self.upload_data)
-
 		# 
 		p = f'\nDownload {numf(self.n)}.{numf(self.turns - t + 1)}: \n\tSent {numf(n)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B) \n\t{numf(1000 * n / self.download_time) if self.download_time > 0 else "--"} packages/s \n\t{numf(n - self.download)} lost and {numf(self.errors)} errors ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B) \n\tReceived {numf(self.download)} packages ({numf(download_size)} {SCALE_PREFIX[download_scale] if download_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_scale))}B = {numf(100 * self.download_data / data_sent) if data_sent else "--"}%)  \n\t{numf(1000 * self.download / self.download_time) if self.download_time > 0 else "--"} packages/s = {numf(download_speed)} {SCALE_PREFIX[download_prefix] if download_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(download_prefix))}b/s' if t > 0 else 'The end.'
-
-			
 
 		data_sent = self.sent * SIZE
 		data_size, data_scale = self.convert_size(data_sent)
@@ -655,15 +583,7 @@ class chat:
 			
 		self.main.window.yview_moveto(0)
 		self.update_window()
-		
-				
-						
-
-
 					
-							
-
-			
 	def destroy (self):
 		print('Closing window')
 		self.connection.close(self.address)
@@ -698,12 +618,15 @@ if __name__ == '__main__':
 		elif k == 'windows':	
 			n = int(v)
 		else:	
+			
+			k = v.lower()#.replace('-','').replace('_','')
+
 			if k == 'udp':	
 				protocol = udp
 			elif k == 'tcp':
 				protocol = tcp
-			k = v.lower()#.replace('-','').replace('_','')
-			continue
+			else:	
+				continue
 
 		print(k,'\t',v)		
 		k = ''
@@ -711,9 +634,7 @@ if __name__ == '__main__':
 		
 	m = main()
 	for c in range(n - 1):	
+		print('Opening',n - c,'extra windows')
 		main(m).start()
 
 	m.start()	
-
-
-
