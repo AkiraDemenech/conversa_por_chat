@@ -2,12 +2,14 @@
 *.gif
 *.jpg
 *.png 
+*.pdf
 *.txt
 *.bin 
 *.ggb
 *.wmv
 *.mp4
 *.mp3
+*.svg
 *.csv
 *.xlsx
 *.docx
