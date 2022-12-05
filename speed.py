@@ -21,7 +21,8 @@ SCALE_PREFIX = '', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y'
 
 
 numf = lambda x: locale.format_string('%.3f' if type(x) == float and not x.is_integer() else '%d', x, grouping=True)
-active = True
+active = chat_autoincrement = True
+
 
 class socket_interface:
 
@@ -180,7 +181,7 @@ TEST_ID = False
 
 class main:
 
-	def __init__ (self, root = None):
+	def __init__ (self, root = None, windows = True):
 		self.is_root = (root == None)
 		if self.is_root:
 			self.main = tkinter.Tk()
@@ -189,7 +190,7 @@ class main:
 			if type(root) == main:
 				root = root.main
 			self.main = tkinter.Toplevel(root)
-		self.main.title(protocol.__name__.upper() + ' Speed test' + (' (main)' * self.is_root)) # mudando o título da janela principal 
+		self.main.title(protocol.__name__.upper() + ' Speed test' + (' (main)' * (self.is_root and windows))) # mudando o título da janela principal 
 
 	def start (self):	
 		self.main.address = tkinter.Frame(self.main)
@@ -269,7 +270,9 @@ class main:
 		try:
 			address = self.main.address.ip.get().strip(), int(self.main.address.port.get())					
 			print('Connecting to',address)
-			chat(self.main, self.socket.connect(address), address, 'to')
+			conn = self.socket.connect(address)
+			time.sleep(0.1)
+			chat(self.main, conn, address, 'to')
 
 		except ValueError:
 			print('Invalid integer client port')	
@@ -293,6 +296,12 @@ class main:
 class chat:
 
 	def __init__ (self, m, c, a, l = ''):		
+		global chat_autoincrement
+		chat_autoincrement += 1
+		self.id = {chat_autoincrement}
+		
+		print('Chat',self.id)
+
 		self.main = tkinter.Toplevel(m)
 		self.main.scrollable = self.main.screen = tkinter.Frame(self.main)
 		self.main.scrollable.pack(side=tkinter.BOTTOM, fill=tkinter.BOTH, expand=True)
@@ -348,7 +357,7 @@ class chat:
 		self.turns = TEST_TURNS
 
 		
-		print('Chatting with',self.address,'(Speed test)')
+		print(self.id,'Chatting with',self.address,'(Speed test)\n')
 
 	def update_window (self, event = None):	
 
@@ -389,12 +398,12 @@ class chat:
 		d = self.received = False
 		while self.active and not self.received: 
 			time.sleep(0.5)
-			print('Waiting confirmation\t',d)
+			print(self.id,'\t','Waiting confirmation\t',d)
 			self.connection.sendall(begin) # envia pacotes de início 	
 			d += 1
 			time.sleep(1)
 
-		print('Sending....')	
+		print(self.id,'\t','Sending....')	
 		
 		ti = time.time()
 		tf = ti + ((remaining_tests > 0) * TEST_TIME / 1000)
@@ -408,13 +417,13 @@ class chat:
 			self.connection.sendall(ck)
 
 		finish = self.package(self.encode_in_bytes(c), self.encode_in_bytes(remaining_tests), self.encode_in_bytes(TEST_TIME) + self.encode_in_bytes(SIZE) + (b'\x7f\0\x7f\0\x7f\0' if ask_data else (self.encode_in_bytes(self.download_data) + self.encode_in_bytes(self.errors) + self.encode_in_bytes(self.download))))
-		print([remaining_tests], c, 'packages sent')	
+		print(self.id,'\t',[remaining_tests], c, 'packages sent')	
 		
 
 		d = self.received = False
 		while self.active and not self.received: 
 			time.sleep(1)
-			print('Waiting for response\t',d)
+			print(self.id,'\t','Waiting for response\t',d)
 			self.connection.sendall(finish) # envia pacotes de finalização 	
 			d += 1
 			time.sleep(1.5)
@@ -429,11 +438,11 @@ class chat:
 
 			if remaining_tests < 1:
 
-				print('Closing\t',self.download,self.download_data)	
+				print(self.id,'\t','Closing\t',self.download,self.download_data)	
 				
 			self.test = -4
 			
-		print('Responded')	
+		print(self.id,'\t','Responded')	
 				
 	def package (self, number = b'\0', test_number = b'', r = b''):			
 		header = r + test_number + number + b'\0'
@@ -498,51 +507,68 @@ class chat:
 			
 		else:		
 			# número do pacote, número do teste, índices inicial e final de leitura do texto, lista de valores
-			print('ERROR\t',m,n,t,r,'\t',[i,f],v,'\t',self.download, self.errors) 
+			print(self.id,'\n','ERROR\t',m,n,t,r,'\t',[i,f],v,'\t',self.download, self.errors) 
 			self.errors += 1
 			return 
 
-		self.received = True	
+			
 	#	print((i,f),v,'\t',m,n,t,r)
 
 		if t > 0: 
 			if self.test < t and self.test >= 0:
-				print('Repeated confirmation')
+				print(self.id,'\t','Repeated confirmation')
+				self.received = True
 				return
 			start = threading.Thread(target=self.send_test, args=(t - 1, False), daemon=True).start
 		elif r > 0 or r == -1:	
 			
 			if self.n < n and t < 0 and t >= -2:
-				print(self.n, '<', n)
+				print(self.id,'\t',self.n, '<', n)
 				self.n = n
 
 			if t == -2: # recebimento da confirmação 
+				self.received = True
 				return
 
-			self.connection.sendall(self.package(self.encode_in_bytes(self.n), b'~\0', b'\x7f\0'))
+			start = lambda pack=self.package(self.encode_in_bytes(self.n), b'~\0', b'\x7f\0'): self.connection.sendall(pack) 
 			if t == -1:
-				print('Beginning....', v[:1])
+				start() # confirmação 
+				print(self.id,'\t','Beginning....', v[:1])
 				self.download = self.download_data = self.errors = False
 				self.test = -4
 				self.turns = v[0]
 				self.main.msg.send.config(state=tkinter.DISABLED)
 				self.main.bind('<Return>', print)
+				self.received = True
 				return 
 				
-			print('Ending\t',self.download,self.download_data)	
+			print(self.id,'\t','Ending\t',self.download,self.download_data)	
 			
 		else:		
+			self.received = True
 			self.download += 1		 
 			self.download_data += len(msg)
 			return
 
-		print('FINISH\t', n, t, r, v)
+		print(self.id,'\t','FINISH\t', n, t, r, v)
+		
+		if (t > 0 and len(v) <= 1) or (r > 0 and len(v) <= 3):
+			print(self.id,'\t','Incomplete data!\n')
+			return 
+		
 		
 		self.upload = r
 		self.download_time = v[0] if len(v) else 0
-		self.download_size = v[1] if len(v) > 1 else 0
-		self.upload_data = v[2] if len(v) > 2 else 0
+		self.download_size = v[1] if len(v) > 1 else -1
+		self.upload_data = v[2] if len(v) > 2 else -1
 		self.upload_error = v[3] if len(v) > 3 else -1
+
+		if (t > 0 and (self.download_time <= 0 or self.download_size < 0)) or (r > 0 and (self.upload_data < 0 or self.upload_error < 0)):
+			print(self.id,'\t','Corrupted data!!\n')
+			return
+
+		print(self.id,'\t','Ok')	
+		self.received = True			
 									
 		data_sent = self.download_size * n	
 		data_size, data_scale = self.convert_size(data_sent)
@@ -561,7 +587,7 @@ class chat:
 		q = f'\nUpload {numf(self.n)}.{numf(self.turns - t)}: \n\tSent {numf(self.sent)} packages ({numf(data_size)} {SCALE_PREFIX[data_scale] if data_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(data_scale))}B) \n\t{numf(1000 * self.sent / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s  \n\t{numf(self.sent - self.upload)} lost {("and " + numf(self.upload_error) + " errors") if (self.upload_error >= 0) else "packages"} ({numf(lost_size)} {SCALE_PREFIX[lost_scale] if lost_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(lost_scale))}B) \n\tReceived {numf(self.upload)} packages ({numf(upload_size)} {SCALE_PREFIX[upload_scale] if upload_scale < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_scale))}B = {numf(100 * self.upload_data / data_sent) if data_sent else "--"}%)  \n\t{numf(1000 * self.upload / TEST_TIME) if TEST_TIME > 0 else "--"} packages/s = {numf(upload_speed)} {SCALE_PREFIX[upload_prefix] if upload_prefix < len(SCALE_PREFIX) else (SCALE_PREFIX[1] + "^" + str(upload_prefix))}b/s' if r > 0 else 'Beginning'
 		
 		start() # inicia a nova chamada, se houver 
-		print(q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'ms\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'ms')
+		print(self.id,q,'\n',SIZE,'Bytes/package\n',TEST_TIME,'ms\n',p,'\n',self.download_size,'Bytes/package\n',self.download_time,'ms')
 
 		paragraph = tkinter.Frame(self.main.chat)
 		t = time.localtime()[:5]
@@ -585,7 +611,7 @@ class chat:
 		self.update_window()
 					
 	def destroy (self):
-		print('Closing window')
+		print('Closing window\t',self.id)
 		self.connection.close(self.address)
 		self.active = False
 		self.main.destroy()
@@ -632,7 +658,7 @@ if __name__ == '__main__':
 		k = ''
 
 		
-	m = main()
+	m = main(windows = (n > 1))
 	for c in range(n - 1):	
 		print('Opening',n - c,'extra windows')
 		main(m).start()
