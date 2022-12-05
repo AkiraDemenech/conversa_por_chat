@@ -390,7 +390,7 @@ class chat:
 	def send_test (self, remaining_tests, ask_data = True):
 		
 		self.test = remaining_tests
-		self.main.msg.send.config(state=tkinter.DISABLED)
+		self.main.msg.send.config(state=tkinter.DISABLED, text='Sending >> ')
 		self.main.bind('<Return>', print)
 		
 		begin = self.package(self.encode_in_bytes(self.n), b'\x7f\0', self.encode_in_bytes(self.turns) + b'\x7f\0')
@@ -433,7 +433,7 @@ class chat:
 
 		if remaining_tests <= 1:
 			
-			self.main.msg.send.config(state=tkinter.ACTIVE)	
+			self.main.msg.send.config(state=tkinter.ACTIVE, text='Run!')	
 			self.main.bind('<Return>', self.main.msg.send.function)	
 
 			if remaining_tests < 1:
@@ -537,7 +537,7 @@ class chat:
 				self.download = self.download_data = self.errors = False
 				self.test = -4
 				self.turns = v[0]
-				self.main.msg.send.config(state=tkinter.DISABLED)
+				self.main.msg.send.config(state=tkinter.DISABLED, text='Receiving << ')
 				self.main.bind('<Return>', print)
 				self.received = True
 				return 
