@@ -16,6 +16,7 @@
 *.webp
 
 uel.br
+wifi.dc
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
